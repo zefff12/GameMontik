@@ -1,0 +1,16 @@
+# Сборка и IDE
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/app/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# Секреты подписи: НЕ публиковать
+keystore.properties
+*.jks
+*.keystore
