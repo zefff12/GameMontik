@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -67,6 +68,7 @@ import ru.montik.app.MorningUi
 import ru.montik.app.game.Catalog
 import ru.montik.app.game.GameEngine
 import ru.montik.app.game.GameState
+import ru.montik.app.game.HeroPreset
 import ru.montik.app.game.Lesson
 import ru.montik.app.game.Medal
 import ru.montik.app.game.Rating
@@ -98,11 +100,13 @@ fun MontikCard(
     color: Color = MontikColors.Surface,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    // Карточка нового макета: скругление 24, мягкая тень и тонкая светло-зелёная рамка.
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = MontikShapes.Card,
+        shape = RoundedCornerShape(24.dp),
         color = color,
-        shadowElevation = 2.dp
+        shadowElevation = 3.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Page.CardBorder)
     ) {
         Column(modifier = Modifier.padding(16.dp), content = content)
     }
@@ -121,9 +125,10 @@ fun BigButton(
             onClick = onClick,
             enabled = enabled,
             shape = MontikShapes.Button,
-            modifier = modifier.fillMaxWidth().heightIn(min = 60.dp),
+            modifier = modifier.fillMaxWidth().heightIn(min = 54.dp),
+            border = if (enabled) androidx.compose.foundation.BorderStroke(1.5.dp, Page.PillBorder) else null,
             colors = ButtonDefaults.buttonColors(
-                containerColor = MontikColors.Lime,
+                containerColor = Page.PillGreen,
                 contentColor = MontikColors.Ink,
                 disabledContainerColor = MontikColors.Track,
                 disabledContentColor = MontikColors.InkSoft
@@ -134,9 +139,10 @@ fun BigButton(
             onClick = onClick,
             enabled = enabled,
             shape = MontikShapes.Button,
-            border = androidx.compose.foundation.BorderStroke(2.dp, MontikColors.Ink),
-            modifier = modifier.fillMaxWidth().heightIn(min = 60.dp)
-        ) { Text(text, textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge) }
+            border = androidx.compose.foundation.BorderStroke(2.dp, if (enabled) Page.Outline else MontikColors.Track),
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = MontikColors.Ink),
+            modifier = modifier.fillMaxWidth().heightIn(min = 54.dp)
+        ) { Text(text, textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium) }
     }
 }
 
@@ -192,21 +198,42 @@ fun ActionTile(
 
 // ───────────────────────── Монтик ─────────────────────────
 
+/**
+ * Имя картинки Монтика для заготовки. Синий — оригинал из макета, остальные — те же рисунки,
+ * перекрашенные (fg_hero_<id>.webp сидит, fg_hero_<id>_stand.webp стоит спиной).
+ */
+fun heroArtName(preset: HeroPreset, standing: Boolean): String = when (preset) {
+    HeroPreset.BLUE -> if (standing) "fg_story7_char" else "fg_splash_hero"
+    // У чёрного и радужного в макете есть только сидячая картинка.
+    HeroPreset.BLACK, HeroPreset.RAINBOW -> "fg_hero_${preset.id}"
+    else -> "fg_hero_${preset.id}" + if (standing) "_stand" else ""
+}
+
 /** Запасной Монтик, нарисованный кодом, — если ребёнок не фотографировал свой рисунок. */
 @Composable
 fun DefaultMontik(modifier: Modifier = Modifier) {
     MontikBunny(modifier)
 }
 
-/** Монтик с надетой одеждой и подсказками о самочувствии. */
+/**
+ * Монтик с надетой одеждой и подсказками о самочувствии.
+ *
+ * Пока ребёнок не сфотографировал свой рисунок и не раскрасил героя, показывается Монтик из макета Figma
+ * выбранной заготовки (белый, синий, зелёный…): пушистый зайка с короной и рюкзаком — сидит
+ * ([standing] = false) или стоит ([standing] = true).
+ * Если герой раскрашен вручную, рисуется запасной Монтик с выбранными цветами. Без картинок макета — тоже он.
+ */
 @Composable
 fun MontikView(
     sprite: ImageBitmap?,
     state: GameState,
     boxSize: Dp,
     palette: HeroPalette = HeroPalette.Default,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    standing: Boolean = false
 ) {
+    val artName = heroArtName(state.preset, standing)
+    val useArt = sprite == null && state.heroColors.isEmpty() && rememberHasArt(artName)
     val transition = rememberInfiniteTransition(label = "idle")
     val bounce by transition.animateFloat(
         initialValue = 0f,
@@ -229,6 +256,8 @@ fun MontikView(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit
             )
+        } else if (useArt) {
+            ArtImage(artName, Modifier.fillMaxSize(), ContentScale.Fit) {}
         } else {
             MontikBunny(Modifier.fillMaxSize(), palette = palette)
         }
@@ -319,7 +348,29 @@ fun LessonDialog(lesson: Lesson, onDismiss: () -> Unit) {
 @Composable
 fun PayslipDialog(ui: ShiftUi, onDismiss: () -> Unit) {
     val slip = ui.slip
+    val fb = rememberFeedback()
+    LaunchedEffect(slip) { if ((slip.stars ?: 0) >= 3) fb.fanfare() else fb.coin() }
     InfoDialog(title = "🧾 Расчётный листок", onDismiss = onDismiss) {
+        slip.stars?.let { stars ->
+            // Звёзды за смену в магазине: 3 — отлично, 2 — хорошо, 1 — смена отработана.
+            Text(
+                starsText(stars),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                fontSize = 40.sp,
+                color = androidx.compose.ui.graphics.Color(0xFFFFC928)
+            )
+            if (slip.record) {
+                Text(
+                    "🏆 Новый рекорд в этой мини-игре!",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = LevelGreen
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+        }
         Text(slip.jobTitle, style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
         PayRow("Начислено", coinsText(slip.gross))
@@ -361,6 +412,8 @@ private fun PayRow(left: String, right: String, bold: Boolean = false) {
 
 @Composable
 fun ScenarioResultDialog(ui: ScenarioResultUi, onDismiss: () -> Unit) {
+    val fb = rememberFeedback()
+    LaunchedEffect(ui) { if (ui.rating == Rating.BAD) fb.bad() else fb.good() }
     val color = when (ui.rating) {
         Rating.GREAT -> MontikColors.Good
         Rating.OK -> MontikColors.Warn
@@ -414,7 +467,11 @@ fun MorningDialog(ui: MorningUi, day: Int, onDismiss: () -> Unit) {
 @Composable
 fun MedalDialog(medal: Medal, onDismiss: () -> Unit) {
     var shown by remember(medal.id) { mutableStateOf(false) }
-    LaunchedEffect(medal.id) { shown = true }
+    val fb = rememberFeedback()
+    LaunchedEffect(medal.id) {
+        shown = true
+        fb.fanfare()
+    }
     val pop by animateFloatAsState(
         targetValue = if (shown) 1f else 0.2f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),

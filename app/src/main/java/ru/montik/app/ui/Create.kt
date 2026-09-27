@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
@@ -51,16 +52,28 @@ import ru.montik.app.CreateUi
 import ru.montik.app.GameViewModel
 import ru.montik.app.game.Hero
 import ru.montik.app.game.HeroPart
+import ru.montik.app.game.HeroPreset
 
 /**
  * Экран создания героя по макету «отрисовка персонажа»: линия с именем сверху,
  * контур Монтика по центру, палитра цветов справа и подпись «нарисуй меня!» внизу.
- * Раскрашивание идёт прямо в приложении: выбери цвет и коснись части героя.
+ * Раскрашивание идёт прямо в приложении: сначала Монтик — белый человечек, выбери цвет и коснись части героя.
+ * Кроме белого, можно взять готового Монтика: синего, зелёного и других — и докрасить его по-своему.
  * Кнопка фотографии оставлена вторым способом — можно нарисовать героя на бумаге.
  */
 @Composable
 fun CreateScreen(vm: GameViewModel, onCamera: () -> Unit, onGallery: () -> Unit) {
     val ui = vm.create
+    // Рисование занимает весь экран без прокрутки: движение пальцем целиком идёт на рисунок.
+    if (ui is CreateUi.Drawing) {
+        DrawingScreen(vm)
+        return
+    }
+    // Новый экран раскраски из макета (Frame 33) — во весь экран, точно по картинке.
+    if (ui is CreateUi.Idle && rememberHasArt("fg_paint_bg")) {
+        FigmaColouringBoard(vm, onCamera, onGallery)
+        return
+    }
     Box(Modifier.fillMaxSize().background(MontikColors.Surface), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
@@ -72,7 +85,7 @@ fun CreateScreen(vm: GameViewModel, onCamera: () -> Unit, onGallery: () -> Unit)
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             when (ui) {
-                is CreateUi.Idle -> ColouringBoard(vm, onCamera, onGallery)
+                is CreateUi.Idle, is CreateUi.Drawing -> ColouringBoard(vm, onCamera, onGallery)
                 is CreateUi.Working -> {
                     Spacer(Modifier.height(80.dp))
                     CircularProgressIndicator(color = MontikColors.LimeDeep)
@@ -159,7 +172,7 @@ private fun ColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: (
             ) {
                 MontikBunny(
                     modifier = Modifier.fillMaxSize(),
-                    palette = heroPalette(vm.heroDraft)
+                    palette = heroPalette(vm.heroPresetDraft, vm.heroDraft)
                 )
             }
         }
@@ -167,8 +180,14 @@ private fun ColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: (
     }
 
     Spacer(Modifier.height(8.dp))
+    PresetPicker(selected = vm.heroPresetDraft, onPick = { lastPart = null; vm.choosePreset(it) })
+    Spacer(Modifier.height(12.dp))
     Text(
-        if (lastPart == null) "Выбери цвет и коснись Монтика" else "Закрашено: ${lastPart?.title}",
+        when {
+            lastPart != null -> "Закрашено: ${lastPart?.title}"
+            vm.heroPresetDraft.isBlank -> "Это белый человечек. Выбери цвет и коснись его — он оживёт!"
+            else -> "Выбери цвет и коснись Монтика, чтобы перекрасить его"
+        },
         style = MaterialTheme.typography.bodyMedium,
         color = MontikColors.InkSoft,
         textAlign = TextAlign.Center
@@ -181,6 +200,8 @@ private fun ColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: (
     Spacer(Modifier.height(10.dp))
     SecondaryPill("🎲  Случайные цвета") { vm.randomColours() }
     Spacer(Modifier.height(10.dp))
+    SecondaryPill("✏️  Нарисовать самому") { vm.startDrawing() }
+    Spacer(Modifier.height(10.dp))
     SecondaryPill("📷  Сфотографировать рисунок", onClick = onCamera)
     Spacer(Modifier.height(10.dp))
     SecondaryPill("🖼  Выбрать фото из галереи", onClick = onGallery)
@@ -189,6 +210,52 @@ private fun ColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: (
         SecondaryPill("Отмена") { vm.cancelRedraw() }
     }
     Spacer(Modifier.height(24.dp))
+}
+
+/**
+ * Заготовки Монтика в один ряд: белый человечек и готовые Монтики из макета.
+ * Повторное касание выбранной заготовки стирает раскраску.
+ */
+@Composable
+private fun PresetPicker(selected: HeroPreset, onPick: (HeroPreset) -> Unit) {
+    Text("Кто твой Монтик?", style = MaterialTheme.typography.titleMedium, color = MontikColors.Ink)
+    Spacer(Modifier.height(6.dp))
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        for (preset in HeroPreset.values()) {
+            val isSelected = preset == selected
+            Column(
+                Modifier.width(68.dp).clickable { onPick(preset) },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(MontikColors.SurfaceTint)
+                        .border(
+                            width = if (isSelected) 4.dp else 2.dp,
+                            color = if (isSelected) MontikColors.LimeDeep else MontikColors.Ink,
+                            shape = CircleShape
+                        )
+                        .padding(6.dp)
+                ) {
+                    ArtImage(heroArtName(preset, standing = false), Modifier.fillMaxSize(), ContentScale.Fit) {
+                        MontikBunny(Modifier.fillMaxSize(), palette = heroPalette(preset))
+                    }
+                }
+                Text(
+                    preset.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MontikColors.Ink,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+            }
+        }
+    }
 }
 
 /** Вторая по важности кнопка: белая пилюля с тёмной обводкой. */
@@ -267,7 +334,11 @@ private fun PhotoPreview(vm: GameViewModel, ui: CreateUi.Preview) {
     Spacer(Modifier.height(16.dp))
     PillButton("Это Монтик! Играть", { vm.confirmSprite() })
     Spacer(Modifier.height(10.dp))
-    SecondaryPill("↺  Сфотографировать заново") { vm.retake() }
+    if (ui.drawn) {
+        SecondaryPill("✏️  Дорисовать") { vm.startDrawing() }
+    } else {
+        SecondaryPill("↺  Сфотографировать заново") { vm.retake() }
+    }
     Spacer(Modifier.height(24.dp))
 }
 
@@ -368,6 +439,136 @@ private fun SampleSheet(good: Boolean, modifier: Modifier = Modifier) {
                 size = androidx.compose.ui.geometry.Size(headR * 0.44f, headR * 1.3f),
                 style = line
             )
+        }
+    }
+}
+
+
+// ───────────────────────── Раскраска по новому макету (Frame 33) ─────────────────────────
+
+/** Масштаб картинки кадра 841×1870 → холст 412. */
+private const val PK = 412f / 841f
+
+private val PaintTeal = Color(0xFF0E5357)
+private val PaintGreen = Color(0xFF3DB54A)
+
+/** Где стоят заготовки в ряду «Кто твой Монтик?» (центры кружков в пикселях картинки). */
+private val AVATAR_CENTERS = listOf(99f to 978f, 246f to 979f, 375f to 979f, 506f to 979f, 631f to 979f, 758f to 977f)
+private val PALETTE_Y = listOf(301f, 378f, 452f, 527f, 602f, 677f, 752f)
+
+/**
+ * Экран «Монтик / Имя» из макета: заголовок и подписи — с картинки (fg_paint_bg), а имя, Монтик
+ * для раскраски, палитра справа, выбор заготовки и кнопки — живые, на своих местах.
+ */
+@Composable
+private fun FigmaColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: () -> Unit) {
+    var colour by rememberSaveable { mutableStateOf(Hero.PALETTE.first()) }
+    fun p(v: Float) = v * PK
+
+    DesignCanvas(background = {
+        ArtImage("fg_paint_bg", Modifier.fillMaxSize(), ContentScale.Crop) {}
+    }) {
+        Art("fg_paint_bg", 0f, 0f, DESIGN_W, 1870f * PK, ContentScale.FillBounds)
+
+        // Стрелка «назад»: при перерисовке — отмена, иначе сбросить раскраску.
+        Hit(p(38f), p(103f), p(80f), p(84f)) {
+            if (vm.redrawing) vm.cancelRedraw() else vm.choosePreset(vm.heroPresetDraft)
+        }
+
+        // Имя — на месте надписи «Имя», над зелёной чертой.
+        Box(Modifier.at(p(300f), p(180f), p(240f), p(48f)), contentAlignment = Alignment.Center) {
+            BasicTextField(
+                value = vm.heroName,
+                onValueChange = { vm.changeHeroName(it.take(Hero.MAX_NAME)) },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.titleLarge.copy(
+                    color = PaintTeal,
+                    textAlign = TextAlign.Center,
+                    fontSize = fs(21f, false)
+                ),
+                cursorBrush = SolidColor(PaintTeal),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                modifier = Modifier.fillMaxSize(),
+                decorationBox = { inner ->
+                    Box(contentAlignment = Alignment.Center) {
+                        if (vm.heroName.isBlank()) Text("Имя", color = PaintTeal.copy(alpha = 0.5f), fontSize = fs(21f, false))
+                        inner()
+                    }
+                }
+            )
+        }
+
+        // Монтик для раскраски — там, где в макете контур зайки.
+        val side = 262f
+        Box(
+            Modifier
+                .at(p(385f) - side / 2f, p(545f) - side / 2f, side, side)
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        val sz = minOf(size.width, size.height).toFloat()
+                        val ox = (size.width - sz) / 2f
+                        val oy = (size.height - sz) / 2f
+                        val part = heroPartAt((offset.x - ox) / sz, (offset.y - oy) / sz)
+                        if (part != null) vm.paintHero(part, colour)
+                    }
+                }
+        ) {
+            MontikBunny(modifier = Modifier.fillMaxSize(), palette = heroPalette(vm.heroPresetDraft, vm.heroDraft))
+        }
+
+        // Палитра справа: семь кружков из макета, выбранный — в зелёном кольце.
+        Hero.PALETTE.forEachIndexed { i, rgb ->
+            val cx = p(727f)
+            val cy = p(PALETTE_Y[i])
+            val r = p(32f)
+            if (rgb == colour) {
+                Box(Modifier.at(cx - r - 4f, cy - r - 4f, 2 * r + 8f, 2 * r + 8f).clip(CircleShape).border(d(3.5f), PaintGreen, CircleShape))
+            }
+            Box(
+                Modifier
+                    .at(cx - r, cy - r, 2 * r, 2 * r)
+                    .clip(CircleShape)
+                    .background(argbColor(rgb))
+                    .border(d(2f), PaintTeal, CircleShape)
+                    .clickable { colour = rgb }
+            )
+        }
+
+        // «Кто твой Монтик?» — шесть заготовок, выбранная в зелёном кольце с галочкой.
+        HeroPreset.PICKER.forEachIndexed { i, preset ->
+            val (px, py) = AVATAR_CENTERS[i]
+            val cx = p(px)
+            val cy = p(py)
+            val r = p(57f)
+            val selected = preset == vm.heroPresetDraft
+            ArtImage("fg_paint_av_${preset.id}", Modifier.at(cx - r, cy - r, 2 * r, 2 * r), ContentScale.FillBounds) {
+                Box(Modifier.fillMaxSize().clip(CircleShape).background(Color.White)) {
+                    MontikBunny(Modifier.fillMaxSize(), palette = heroPalette(preset))
+                }
+            }
+            Box(
+                Modifier.at(cx - r - 3f, cy - r - 3f, 2 * r + 6f, 2 * r + 6f)
+                    .clip(CircleShape)
+                    .border(if (selected) d(4f) else d(1.2f), if (selected) PaintGreen else Color(0xFFCFE3CF), CircleShape)
+                    .clickable { vm.choosePreset(preset) }
+            )
+            if (selected) {
+                Box(
+                    Modifier.at(cx + r * 0.45f, cy + r * 0.45f, 22f, 22f).clip(CircleShape).background(PaintGreen)
+                        .border(d(2f), Color.White, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) { Text("✓", color = Color.White, fontSize = fs(13f, false)) }
+            }
+        }
+
+        // Кнопки макета: «Готово!» и список действий.
+        Hit(p(185f), p(1290f), p(485f), p(120f)) { vm.confirmColouring() }
+        Hit(p(140f), p(1445f), p(560f), p(76f)) { vm.randomColours() }
+        Hit(p(140f), p(1526f), p(560f), p(76f)) { vm.startDrawing() }
+        Hit(p(140f), p(1607f), p(560f), p(78f), onCamera)
+        Hit(p(140f), p(1690f), p(560f), p(76f), onGallery)
+        Hit(p(140f), p(1770f), p(560f), p(76f)) {
+            if (vm.redrawing) vm.cancelRedraw() else vm.choosePreset(vm.heroPresetDraft)
         }
     }
 }

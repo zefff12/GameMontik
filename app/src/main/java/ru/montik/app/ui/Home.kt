@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import ru.montik.app.GameViewModel
 import ru.montik.app.Screen
 import ru.montik.app.game.GameEngine
+import ru.montik.app.game.Life
 
 /**
  * Главный экран по макету «переезд»: комната во весь экран, монеты сверху справа,
@@ -46,6 +47,16 @@ import ru.montik.app.game.GameEngine
  */
 @Composable
 fun HomeScreen(vm: GameViewModel) {
+    // Комната из Figma, если иллюстрации fg_room_* добавлены в проект; иначе — нарисованная комната.
+    if (rememberHasArt("fg_room_morning", "fg_room_coins", "fg_room_buttons", "fg_room_work")) {
+        FigmaHome(vm)
+    } else {
+        ClassicHome(vm)
+    }
+}
+
+@Composable
+private fun ClassicHome(vm: GameViewModel) {
     val s = vm.state
     Box(Modifier.fillMaxSize()) {
         ArtImage("bg_room", Modifier.fillMaxSize()) { RoomBackdrop(Modifier.fillMaxSize()) }
@@ -70,14 +81,32 @@ fun HomeScreen(vm: GameViewModel) {
                 Spacer(Modifier.weight(1f))
                 // Справа — столбик круглых кнопок из макета.
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    RoundAction("🍔", "ГОЛОД", MontikColors.Hunger, MontikColors.HungerDeep, s.food) { vm.goTo(Screen.Shop) }
+                    RoundAction("🍔", "ГОЛОД", MontikColors.Hunger, MontikColors.HungerDeep, s.food) { vm.goTo(Screen.Kitchen) }
                     RoundAction("💤", "СОН", MontikColors.Sleep, MontikColors.SleepDeep, null) { vm.goTo(Screen.Sleep) }
                     RoundAction("⚡", "УСТАЛОСТЬ", MontikColors.Energy, MontikColors.EnergyDeep, s.energy) { vm.goTo(Screen.Sleep) }
                     RoundAction("📱", "ТЕЛЕФОН", MontikColors.Phone, MontikColors.PhoneDeep, null) { vm.goTo(Screen.Phone) }
-                    RoundAction("👛", "КОШЕЛЁК", MontikColors.Wallet, MontikColors.WalletDeep, null) { vm.goTo(Screen.Cushion) }
+                    RoundAction("👛", "КОШЕЛЁК", MontikColors.Wallet, MontikColors.WalletDeep, null) { vm.goTo(Screen.Budget) }
                 }
             }
 
+            // Уровень, настроение и квартира.
+            Text(
+                "${s.home.emoji} Ур. ${s.housing} · ${s.home.levelTitle}   ${Life.moodTitle(s.mood)}   " +
+                    (Life.rentNotice(s) ?: "🐷 ${s.savings}"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MontikColors.Ink
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SmallPill("📋 План", modifier = Modifier.weight(1f)) { vm.goTo(Screen.Budget) }
+                SmallPill("🐷 Копилка", modifier = Modifier.weight(1f)) { vm.goTo(Screen.Goals) }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SmallPill("📝 Задания", modifier = Modifier.weight(1f)) { vm.goTo(Screen.Tasks) }
+                SmallPill("Кухня", filled = false, modifier = Modifier.weight(1f)) { vm.goTo(Screen.Kitchen) }
+            }
+            Spacer(Modifier.height(6.dp))
             // Текущая цель игры — короткой белой полоской внизу.
             Surface(
                 shape = MontikShapes.Chip,

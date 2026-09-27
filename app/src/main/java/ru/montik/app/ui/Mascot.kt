@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import ru.montik.app.game.GameState
 import ru.montik.app.game.HeroPart
+import ru.montik.app.game.HeroPreset
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -30,8 +31,9 @@ class HeroPalette(private val colors: Map<HeroPart, Color>) {
 fun heroPalette(state: GameState): HeroPalette =
     HeroPalette(HeroPart.values().associateWith { argbColor(state.heroColor(it)) })
 
-fun heroPalette(chosen: Map<HeroPart, Int>): HeroPalette =
-    HeroPalette(HeroPart.values().associateWith { argbColor(chosen[it] ?: it.default) })
+/** Цвета заготовки [preset] с перекрашенными частями [chosen] поверх неё. */
+fun heroPalette(preset: HeroPreset, chosen: Map<HeroPart, Int> = emptyMap()): HeroPalette =
+    HeroPalette(HeroPart.values().associateWith { argbColor(chosen[it] ?: preset.color(it)) })
 
 /**
  * Геометрия героя в долях от стороны квадрата (0..1). Один и тот же список используется
@@ -134,7 +136,9 @@ fun MontikBunny(
         val line = Stroke(width = s * 0.012f)
 
         for (blob in BODY) {
-            val color = palette[blob.part].shaded(blob.shade)
+            // Белый человечек — чистый контур: чисто-белые части не затемняем, чтобы он оставался белым.
+            val base = palette[blob.part]
+            val color = if (base == Color.White) base else base.shaded(blob.shade)
             val topLeft = Offset(x(blob.cx - blob.rx), y(blob.cy - blob.ry))
             val blobSize = Size(s * blob.rx * 2f, s * blob.ry * 2f)
             val turn = when {

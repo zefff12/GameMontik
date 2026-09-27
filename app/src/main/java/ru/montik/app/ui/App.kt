@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,8 +29,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
+import ru.montik.app.CreateUi
 import ru.montik.app.GameViewModel
 import ru.montik.app.Screen
+import ru.montik.app.game.Ads
+import ru.montik.app.game.Advice
+import ru.montik.app.game.BusinessEngine
 import ru.montik.app.game.Scenario
 
 /**
@@ -38,6 +43,8 @@ import ru.montik.app.game.Scenario
  */
 @Composable
 fun MontikApp(vm: GameViewModel = viewModel()) {
+    // Звуки включаются и выключаются в разделе для взрослых.
+    SideEffect { Sfx.enabled = vm.state.soundOn }
     when {
         !vm.state.storySeen -> OnboardingFlow(onFinished = { vm.finishStory() })
         vm.needsCreation -> CreationHost(vm)
@@ -61,6 +68,8 @@ private fun CreationHost(vm: GameViewModel) {
     }
 
     BackHandler(enabled = vm.redrawing) { vm.cancelRedraw() }
+    // «Назад» во время рисования возвращает к раскраске (этот обработчик важнее предыдущего).
+    BackHandler(enabled = vm.create is CreateUi.Drawing) { vm.cancelDrawing() }
 
     CreateScreen(
         vm = vm,
@@ -90,17 +99,36 @@ private fun GameHost(vm: GameViewModel) {
     BackHandler(enabled = vm.screen != Screen.Home) { vm.back() }
 
     Box(Modifier.fillMaxSize()) {
-        when (vm.screen) {
-            Screen.Home -> HomeScreen(vm)
-            Screen.Phone -> PhoneScreen(vm)
-            Screen.Work -> WorkScreen(vm)
-            Screen.Shop -> ShopScreen(vm)
-            Screen.Travel -> TravelScreen(vm)
-            Screen.Sleep -> SleepScreen(vm)
-            Screen.Cushion -> CushionScreen(vm)
-            Screen.Bank -> BankScreen(vm)
-            Screen.Diary -> DiaryScreen(vm)
-            Screen.Parent -> ParentScreen(vm)
+        val wake = vm.wake
+        when {
+            // Монтик спит: таймер сна, а потом будильник. Пока он спит, остальная игра ждёт.
+            vm.state.sleep != null -> SleepFlow(vm)
+            // Только что проснулся: стоит возле кровати, показываем итоги сна.
+            wake != null -> WakeScreen(vm, wake)
+            else -> when (vm.screen) {
+                Screen.Home -> HomeScreen(vm)
+                Screen.Kitchen -> KitchenScreen(vm)
+                Screen.Budget -> BudgetScreen(vm)
+                Screen.Goals -> GoalsScreen(vm)
+                Screen.Tasks -> TasksScreen(vm)
+                Screen.Housing -> HousingScreen(vm)
+                Screen.Glossary -> GlossaryScreen(vm)
+                Screen.Phone -> PhoneScreen(vm)
+                Screen.Work -> WorkScreen(vm)
+                Screen.Store -> StoreScreen(vm)
+                Screen.Business -> BusinessScreen(vm)
+                Screen.Shop -> ShopScreen(vm)
+                Screen.Travel -> TravelScreen(vm)
+                Screen.Sleep -> SleepScreen(vm)
+                Screen.Cushion -> CushionScreen(vm)
+                Screen.Bank -> BankScreen(vm)
+                Screen.Diary -> DiaryScreen(vm)
+                Screen.Parent -> ParentScreen(vm)
+                Screen.Grocery -> GroceryScreen(vm)
+                Screen.Fridge -> FridgeScreen(vm)
+                Screen.BankJob -> BankJobScreen(vm)
+                Screen.Console -> ConsoleScreen(vm)
+            }
         }
 
         Overlays(vm)
@@ -123,20 +151,34 @@ private fun GameHost(vm: GameViewModel) {
 /** Показывается один диалог за раз, по важности. */
 @Composable
 private fun Overlays(vm: GameViewModel) {
+    // Во время сна и на экране пробуждения диалоги ждут: они появятся, когда Монтик начнёт день.
+    if (vm.state.sleep != null || vm.wake != null) return
     val scenarioResult = vm.scenarioResult
     val shiftResult = vm.shiftResult
-    val morning = vm.morning
     val medal = vm.medals.firstOrNull()
     val lesson = vm.lessons.firstOrNull()
     val pending = vm.pendingScenario
+    val s = vm.state
+    val period = s.periods.lastOrNull()?.takeIf { it.period > s.periodSeen }
+    val ad = Ads.pending(s)
+    val levelUp = vm.levelUp
+    // Совет дня и похвала взрослого — только на главных экранах (комната и кухня).
+    val onMain = vm.screen == Screen.Home || vm.screen == Screen.Kitchen
 
     when {
         scenarioResult != null -> ScenarioResultDialog(scenarioResult) { vm.dismissScenarioResult() }
         shiftResult != null -> PayslipDialog(shiftResult) { vm.dismissShiftResult() }
-        morning != null -> MorningDialog(morning, vm.state.day) { vm.dismissMorning() }
         medal != null -> MedalDialog(medal) { vm.dismissMedal() }
         lesson != null -> LessonDialog(lesson) { vm.dismissLesson() }
         pending != null -> PendingScenarioOverlay(vm, pending)
+        // Знакомство «три решения» — сразу после первой ситуации; потом — по кнопке «?».
+        vm.helpOpen || !s.helpSeen -> HelpDialog(vm)
+        period != null -> PeriodSummaryDialog(vm, period)
+        levelUp != null -> LevelUpOverlay(vm, levelUp)
+        onMain && s.parentNoteNew -> ParentNoteOverlay(vm)
+        onMain && vm.tipDue -> TipOverlay(vm, Advice.forToday(s))
+        ad != null && vm.adVisible -> AdOverlay(vm, ad)
+        BusinessEngine.offerPending(s) -> BusinessOfferDialog(vm)
     }
 }
 

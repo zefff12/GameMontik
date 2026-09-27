@@ -183,10 +183,13 @@ private fun StoryFooter(index: Int, total: Int, onNext: () -> Unit) {
 @Composable
 fun OnboardingFlow(onFinished: () -> Unit) {
     var step by rememberSaveable { mutableStateOf(0) }
+    // Если в проект добавлены иллюстрации из Figma (fg_*), показываем экраны точно по макету,
+    // иначе — прежние нарисованные экраны.
+    val figma = rememberHasArt("fg_splash_bg", "fg_story2_bg", "fg_ready_bg")
     when (step) {
-        0 -> SplashScreen(onStart = { step = 1 })
-        1 -> StoryScreen(onDone = { step = 2 })
-        else -> ReadyScreen(onGo = onFinished)
+        0 -> if (figma) FigmaSplash(onStart = { step = 1 }) else SplashScreen(onStart = { step = 1 })
+        1 -> if (figma) FigmaStory(onDone = { step = 2 }) else StoryScreen(onDone = { step = 2 })
+        else -> if (figma) FigmaReady(onGo = onFinished) else ReadyScreen(onGo = onFinished)
     }
 }
 

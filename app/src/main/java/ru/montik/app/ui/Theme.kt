@@ -9,10 +9,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.montik.app.R
 
 /**
  * Единственное место, где заданы цвета, скругления и шрифты.
@@ -87,11 +89,13 @@ object MontikSizes {
 }
 
 /**
- * В макете использован Ubuntu Mono. Шрифт не входит в проект (его нельзя вложить без лицензии
- * в репозиторий), поэтому берётся системный моноширинный — он даёт тот же характер.
- * Как подключить настоящий Ubuntu Mono, описано в docs/DESIGN_ASSETS.md.
+ * Шрифт всей игры — рукописный Pangolin (res/font/pangolin.ttf, лицензия SIL OFL 1.1,
+ * текст лицензии — docs/fonts/OFL-Pangolin.txt). Он же нарисован в новом макете панели.
+ * Жирное начертание Android достраивает сам.
  */
-private val Mono = FontFamily.Monospace
+val MontikFont: FontFamily = FontFamily(Font(R.font.pangolin))
+
+private val Mono = MontikFont
 
 private val typography = Typography(
     displayLarge = TextStyle(fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 40.sp, lineHeight = 46.sp),

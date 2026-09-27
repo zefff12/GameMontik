@@ -43,15 +43,20 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.montik.app.GameViewModel
 import ru.montik.app.game.Destinations
 import ru.montik.app.game.GameEngine
 import ru.montik.app.game.Lesson
+import ru.montik.app.game.Life
 import ru.montik.app.game.Medals
 import ru.montik.app.game.Rules
+import ru.montik.app.game.VirtualClock
 import ru.montik.app.game.Skill
+import ru.montik.app.game.TaskTheme
+import ru.montik.app.game.Tasks
 import ru.montik.app.game.SleepPlace
 
 // ───────────────────────── Путешествия ─────────────────────────
@@ -126,6 +131,11 @@ fun TravelScreen(vm: GameViewModel) {
 @Composable
 fun SleepScreen(vm: GameViewModel) {
     val s = vm.state
+    // Виртуальные часы идут сами: план ночи обновляется на глазах.
+    val nowMs = rememberNowMs()
+    val plan = vm.sleepPlan(nowMs)
+    val nowV = VirtualClock.now(s, nowMs)
+    val laterBed = plan.bedV > nowV
     Box(
         Modifier
             .fillMaxSize()
@@ -168,10 +178,19 @@ fun SleepScreen(vm: GameViewModel) {
                     AlarmClock(Modifier.size(120.dp))
                     Spacer(Modifier.height(10.dp))
                     Text("Будильник", style = MaterialTheme.typography.titleLarge, color = MontikColors.Ink)
-                    Text("07:00", style = MaterialTheme.typography.displayLarge, color = MontikColors.Ink)
+                    Text(VirtualClock.formatV(plan.alarmV), style = MaterialTheme.typography.displayLarge, color = MontikColors.Ink)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "День ${s.day}. Сон восстанавливает силы.",
+                        "Сейчас ${VirtualClock.formatV(nowV)}, день ${s.day}. " +
+                            (if (laterBed) "Монтик ляжет вечером, в ${VirtualClock.formatV(plan.bedV)}" else "Монтик ложится сейчас") +
+                            " и проспит ${VirtualClock.duration(plan.minutes)} — это ${plan.minutes / Rules.VIRTUAL_PER_REAL} мин настоящего времени.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MontikColors.InkSoft,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Проспит 8 часов и больше — выспится, и смены будут отнимать меньше сил. Мало сна — Монтик быстрее устанет.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MontikColors.InkSoft,
                         textAlign = TextAlign.Center
@@ -181,37 +200,18 @@ fun SleepScreen(vm: GameViewModel) {
             Spacer(Modifier.height(16.dp))
 
             MontikCard(color = MontikColors.Surface) {
-                Text("🏠 Ночь в домике", style = MaterialTheme.typography.titleMedium)
-                Text("Силы восстановятся полностью.", style = MaterialTheme.typography.bodyLarge)
+                Text("${s.home.emoji} Спать дома", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    if (s.prepaidNight) "Ночь уже оплачена." else "Цена: ${Rules.CABIN_PRICE} монет.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MontikColors.InkSoft
-                )
-                Spacer(Modifier.height(10.dp))
-                BigButton(
-                    if (s.prepaidNight) "Лечь спать в домике" else "Оплатить домик и лечь спать",
-                    onClick = { vm.sleep(SleepPlace.CABIN) },
-                    enabled = s.prepaidNight || s.coins >= Rules.CABIN_PRICE
-                )
-                if (!s.prepaidNight && s.coins < Rules.CABIN_PRICE) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Не хватает монет на домик. Можно переночевать на скамейке.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MontikColors.InkSoft
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            MontikCard(color = MontikColors.Surface) {
-                Text("🪑 Скамейка в парке", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Бесплатно, но спится плохо: сил восстановится только на ${Rules.BENCH_ENERGY}%.",
+                    "Монтик снимает квартиру, поэтому ночь дома бесплатная: за жильё он платит дважды в месяц. " +
+                        "За целую ночь силы восстановятся полностью.",
                     style = MaterialTheme.typography.bodyLarge
                 )
+                Life.rentNotice(s)?.let {
+                    Spacer(Modifier.height(4.dp))
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MontikColors.Warn)
+                }
                 Spacer(Modifier.height(10.dp))
-                BigButton("Переночевать на скамейке", onClick = { vm.sleep(SleepPlace.BENCH) }, primary = false)
+                BigButton("Лечь спать", onClick = { vm.goToBed(SleepPlace.CABIN) })
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -220,7 +220,7 @@ fun SleepScreen(vm: GameViewModel) {
 
 /** Зелёный будильник из макета, нарисованный кодом. */
 @Composable
-private fun AlarmClock(modifier: Modifier = Modifier) {
+internal fun AlarmClock(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val w = size.width
         val c = Offset(w / 2f, w * 0.56f)
@@ -264,70 +264,64 @@ private fun AlarmClock(modifier: Modifier = Modifier) {
 
 @Composable
 fun CushionScreen(vm: GameViewModel) {
-    ScreenScaffold("🛟 Подушка безопасности", vm) {
+    ScreenScaffold("Подушка безопасности", vm, icon = "fg_ui_h_cushion", footer = "fg_ui_foot_cushion") {
         val s = vm.state
-        MontikCard(color = MontikColors.SurfaceTint) {
+        IconCard("fg_ui_c_montik", "🛟", color = Page.Mint, iconSize = 96.dp) {
             Text(
                 "Подушка безопасности — это запас денег на трудные дни: поломку, потерю вещи, непредвиденные траты. " +
                     "Хорошее правило: откладывать пятую часть (20%) от заработка.",
                 style = MaterialTheme.typography.bodyLarge
             )
         }
-        MontikCard {
-            Text("В подушке: ${s.cushion} из ${Rules.CUSHION_GOAL} монет", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { (s.cushion / Rules.CUSHION_GOAL.toFloat()).coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth().height(14.dp),
-                color = MontikColors.Good,
-                trackColor = MontikColors.Track
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                if (s.cushion >= Rules.CUSHION_GOAL) "🎉 Подушка готова! Теперь Монтик спокойнее переживёт трудные дни."
-                else "Цель: накопить ${Rules.CUSHION_GOAL} монет.",
-                style = MaterialTheme.typography.bodyMedium
-            )
+        IconCard(
+            "fg_ui_c_coins", "🪙", iconSize = 64.dp,
+            below = {
+                LinearProgressIndicator(
+                    progress = { (s.cushion / Rules.CUSHION_GOAL.toFloat()).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(14.dp).clip(MontikShapes.Chip),
+                    color = MontikColors.Good,
+                    trackColor = MontikColors.Track
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (s.cushion >= Rules.CUSHION_GOAL) "🎉 Подушка готова! Теперь Монтик спокойнее переживёт трудные дни."
+                    else "Цель: накопить ${Rules.CUSHION_GOAL} монет.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MontikColors.InkSoft
+                )
+            }
+        ) {
+            Text("В подушке", style = MaterialTheme.typography.titleLarge)
+            Text("${s.cushion} из ${Rules.CUSHION_GOAL} монет", style = MaterialTheme.typography.bodyLarge, color = MontikColors.InkSoft)
         }
-        MontikCard {
-            Text("Отложить в подушку", style = MaterialTheme.typography.titleMedium)
-            Text("В кошельке: ${s.coins} монет", style = MaterialTheme.typography.bodyMedium, color = MontikColors.InkSoft)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (amount in listOf(10, 20, 50)) {
-                    OutlinedButton(
-                        onClick = { vm.deposit(amount) },
-                        enabled = s.coins >= amount,
-                        shape = MontikShapes.Chip,
-                        modifier = Modifier.weight(1f)
-                    ) { Text("+$amount") }
+        IconCard(
+            "fg_ui_c_pig", "🐷", color = Page.Sky, iconSize = 64.dp,
+            below = {
+                PillRow {
+                    for (amount in listOf(10, 20, 50)) {
+                        PagePill("+$amount", Modifier.weight(1f), filled = false, enabled = s.coins >= amount) { vm.deposit(amount) }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                PagePill("Отложить всё, что в кошельке", Modifier.fillMaxWidth(), enabled = s.coins > 0, icon = "fg_ui_c_coin") {
+                    vm.deposit(s.coins)
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            BigButton("Отложить всё, что в кошельке", onClick = { vm.deposit(s.coins) }, enabled = s.coins > 0, primary = false)
+        ) {
+            Text("Отложить в подушку", style = MaterialTheme.typography.titleLarge)
+            Text("В кошельке: ${s.coins} монет", style = MaterialTheme.typography.bodyMedium, color = MontikColors.InkSoft)
         }
-        MontikCard {
-            Text("Взять из подушки", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Подушка нужна для трудных дней, а не для игрушек.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MontikColors.InkSoft
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { vm.withdraw(10) },
-                    enabled = s.cushion >= 10,
-                    shape = MontikShapes.Chip,
-                    modifier = Modifier.weight(1f)
-                ) { Text("−10") }
-                OutlinedButton(
-                    onClick = { vm.withdraw(s.cushion) },
-                    enabled = s.cushion > 0,
-                    shape = MontikShapes.Chip,
-                    modifier = Modifier.weight(1f)
-                ) { Text("Забрать всё") }
+        IconCard(
+            "fg_ui_c_doc", "📄", color = Page.Lilac, iconSize = 64.dp,
+            below = {
+                PillRow {
+                    PagePill("−10", Modifier.weight(1f), filled = false, enabled = s.cushion >= 10) { vm.withdraw(10) }
+                    PagePill("Забрать всё", Modifier.weight(1f), filled = false, enabled = s.cushion > 0) { vm.withdraw(s.cushion) }
+                }
             }
+        ) {
+            Text("Взять из подушки", style = MaterialTheme.typography.titleLarge)
+            Text("Подушка нужна для трудных дней, а не для игрушек.", style = MaterialTheme.typography.bodyMedium, color = MontikColors.InkSoft)
         }
     }
 }
@@ -451,6 +445,25 @@ fun BankScreen(vm: GameViewModel) {
 fun DiaryScreen(vm: GameViewModel) {
     ScreenScaffold("📒 Дневник и награды", vm) {
         val s = vm.state
+        MontikCard(color = MontikColors.SurfaceTint) {
+            Text("Учебный прогресс", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            DiaryRow("Задания", "${Tasks.doneCount(s)} из ${Tasks.all.size}")
+            DiaryRow("Звёзды привычек", "${s.stars}")
+            DiaryRow("Уровень", "${s.housing} · ${s.home.levelTitle}")
+            Text(GameEngine.currentGoal(s), style = MaterialTheme.typography.bodyMedium)
+            val last = s.periods.lastOrNull()
+            if (last != null) {
+                Spacer(Modifier.height(6.dp))
+                Text("Итоги периода ${last.period}: звёзд ${last.stars} из 3", style = MaterialTheme.typography.titleMedium)
+                PlanFactTable(last)
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SmallPill("📝 Задания") { vm.goTo(ru.montik.app.Screen.Tasks) }
+                SmallPill("📖 Справка", filled = false) { vm.goTo(ru.montik.app.Screen.Glossary) }
+            }
+        }
         MontikCard {
             Text("Сегодня, день ${s.day}", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
@@ -677,6 +690,7 @@ private fun ParentLogin(vm: GameViewModel) {
 private fun ParentDashboard(vm: GameViewModel) {
     val s = vm.state
     var confirmReset by rememberSaveable { mutableStateOf(false) }
+    var confirmTest by rememberSaveable { mutableStateOf(false) }
     var newPin by rememberSaveable { mutableStateOf("") }
 
     MontikCard {
@@ -701,6 +715,62 @@ private fun ParentDashboard(vm: GameViewModel) {
             style = MaterialTheme.typography.bodyMedium,
             color = MontikColors.InkSoft
         )
+    }
+    MontikCard {
+        Text("Финансовые привычки", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(6.dp))
+        DiaryRow("Уровень", "${s.housing} · ${s.home.levelTitle}")
+        DiaryRow("Звёзд привычек", "${s.stars}")
+        DiaryRow("Периодов пройдено", "${s.periods.size}")
+        DiaryRow("Накоплено (копилка + подушка)", coinsText(s.savings))
+        DiaryRow("Заданий пройдено", "${Tasks.doneCount(s)} из ${Tasks.all.size}")
+        DiaryRow("Реклама: закрыто / куплено", "${s.adsDeclined} / ${s.adsBought}")
+        for (theme in TaskTheme.values()) {
+            val list = Tasks.all.filter { it.theme == theme }
+            DiaryRow("${theme.emoji} ${theme.title}", "${list.count { it.id in s.taskResults }} из ${list.size}")
+        }
+        val last = s.periods.lastOrNull()
+        if (last != null) {
+            Spacer(Modifier.height(6.dp))
+            Text("Последний период (${last.period}): звёзд ${last.stars} из 3", style = MaterialTheme.typography.bodyLarge)
+            for (line in Life.explain(last)) Text(line, style = MaterialTheme.typography.bodyMedium)
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Здесь нет оценок «плохо/хорошо»: ошибки в игре — это учебные ситуации, их можно исправить в следующем периоде.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MontikColors.InkSoft
+        )
+    }
+    PraiseCard(vm)
+    MontikCard {
+        Text("Звуки в игре", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Короткие звуки: сканер на кассе, монетки, успех и ошибка. Громкость — как у медиа на телефоне.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(Modifier.height(8.dp))
+        BigButton(
+            if (s.soundOn) "🔇 Выключить звуки" else "🔊 Включить звуки",
+            onClick = { vm.setSound(!s.soundOn) },
+            primary = !s.soundOn
+        )
+    }
+    MontikCard {
+        Text("Демонстрационный режим", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Для экспертной проверки: все задания открыты сразу, а на главном экране появляется кнопка «Следующий период» — " +
+                "игровые периоды проходят подряд без ожидания, по тем же правилам.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(Modifier.height(8.dp))
+        BigButton(
+            if (s.demo) "Выключить демо-режим" else "Включить демо-режим",
+            onClick = { vm.setDemo(!s.demo) },
+            primary = !s.demo
+        )
+        Spacer(Modifier.height(8.dp))
+        BigButton("Сбросить тестовый профиль", onClick = { confirmTest = true }, primary = false)
     }
     MontikCard {
         val done = Lesson.values().count { it.name in s.seenLessons }
@@ -750,6 +820,21 @@ private fun ParentDashboard(vm: GameViewModel) {
             textAlign = TextAlign.Start
         )
     }
+    if (confirmTest) {
+        AlertDialog(
+            onDismissRequest = { confirmTest = false },
+            containerColor = MontikColors.Surface,
+            title = { Text("Сбросить тестовый профиль?") },
+            text = { Text("Прогресс удалится, игра начнётся заново с готовым героем, 300 монетами и включённым демо-режимом.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmTest = false
+                    vm.resetTestProfile()
+                }) { Text("Сбросить", color = MontikColors.Bad) }
+            },
+            dismissButton = { TextButton(onClick = { confirmTest = false }) { Text("Отмена") } }
+        )
+    }
     if (confirmReset) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
@@ -766,5 +851,44 @@ private fun ParentDashboard(vm: GameViewModel) {
                 TextButton(onClick = { confirmReset = false }) { Text("Отмена") }
             }
         )
+    }
+}
+
+
+/** Похвала от взрослого: готовые слова одной кнопкой или своё сообщение. Ребёнок увидит его на главном экране. */
+@Composable
+private fun PraiseCard(vm: GameViewModel) {
+    val s = vm.state
+    var text by rememberSaveable { mutableStateOf("") }
+    MontikCard(color = TipGreen) {
+        Text("💌 Похвалить ребёнка", style = MaterialTheme.typography.titleMedium, color = NameInk)
+        Text(
+            "Сообщение появится у ребёнка на главном экране — это сильнее любой награды в игре.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        if (s.parentNote.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                (if (s.parentNoteNew) "Ждёт прочтения: " else "Прочитано: ") + "«${s.parentNote}»",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MontikColors.InkSoft
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        for (quick in ru.montik.app.game.Praise.quick) {
+            OutlinedButton(onClick = { vm.sendPraise(quick) }, modifier = Modifier.fillMaxWidth()) { Text(quick) }
+        }
+        Spacer(Modifier.height(6.dp))
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it.take(ru.montik.app.game.Praise.MAX_LENGTH) },
+            label = { Text("Своё сообщение") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        BigButton("Отправить", onClick = {
+            vm.sendPraise(text)
+            text = ""
+        }, enabled = text.isNotBlank())
     }
 }

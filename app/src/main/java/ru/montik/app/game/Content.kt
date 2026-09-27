@@ -10,7 +10,8 @@ enum class Skill(val title: String, val emoji: String, val meaning: String) {
     PLANNER("Планировщик", "🪙", "умеет распределять деньги"),
     BANKER("Банкир", "🏦", "понимает накопления"),
     CREATOR("Создатель", "🛠", "понимает заработок"),
-    TRAVELER("Путешественник", "🌍", "умеет планировать поездки");
+    TRAVELER("Путешественник", "🌍", "умеет планировать поездки"),
+    ENTREPRENEUR("Предприниматель", "🏬", "умеет вести своё дело");
 
     companion object {
         const val POINTS_PER_LEVEL = 5
@@ -133,6 +134,50 @@ enum class Lesson(val emoji: String, val title: String, val text: String, val go
             "Но и его планируют заранее: сначала откладывают на поездку, а на месте помнят про обратную дорогу " +
             "и не тратят всё до последней монеты.",
         "Копит на отдых заранее и планирует траты на месте"
+    ),
+    INVEST(
+        "🏗", "Вложения и риск",
+        "Чтобы открыть своё дело, нужно сначала вложить деньги: снять помещение, сделать ремонт, купить оборудование и товары. " +
+            "Вложения окупаются не сразу, а иногда не окупаются совсем. " +
+            "Поэтому дело планируют заранее и не тратят на него все деньги до последней монеты.",
+        "Понимает, что своё дело требует вложений и несёт риск"
+    ),
+    PROFIT(
+        "📈", "Выручка, расходы и прибыль",
+        "Выручка — это всё, что покупатели заплатили магазину. Но из неё нужно оплатить товары, аренду и свет. " +
+            "То, что осталось, — прибыль. Она может быть маленькой, а если расходы больше выручки — магазин работает в минус.",
+        "Различает выручку, расходы и прибыль"
+    ),
+    STOCK(
+        "📦", "Запас товаров",
+        "Если товар закончился, покупатель уходит к соседям, а магазин теряет деньги. " +
+            "Но и слишком много товара покупать не стоит: деньги «застревают» на полках. " +
+            "Владелец следит за запасом и закупает товар заранее.",
+        "Понимает, зачем магазину запас товаров, и планирует закупки"
+    ),
+    RENT(
+        "🏠", "Квартира и аренда",
+        "Монтик снимает квартиру и платит за неё два раза в месяц. Это обязательная трата: " +
+            "деньги на квартиру откладывают заранее, чтобы в день оплаты они точно были.",
+        "Понимает регулярные обязательные платежи и откладывает на них заранее"
+    ),
+    PLAN(
+        "📋", "План бюджета",
+        "В начале периода деньги распределяют по трём частям: обязательное, желаемое и копилка. " +
+            "В конце сравнивают план с тем, что было на самом деле. Так видно, где получилось, а что поправить.",
+        "Составляет план бюджета и сравнивает его с фактом"
+    ),
+    GOAL(
+        "🎯", "Копим на цель",
+        "Цель — это то, на что копишь. Если откладывать понемногу, но регулярно, цель обязательно придёт. " +
+            "Каждый раз, когда берёшь из копилки, цель отодвигается.",
+        "Ставит финансовую цель и регулярно откладывает на неё"
+    ),
+    ADS(
+        "📣", "Реклама",
+        "Реклама хочет, чтобы ты купил сразу, не подумав: «выгода», «только сегодня». " +
+            "Спроси себя: нужна ли вещь, есть ли она в плане, не помешает ли цели? Закрыть рекламу — тоже решение.",
+        "Не поддаётся рекламе и импульсивным покупкам"
     );
 
     val id: String get() = name
@@ -189,9 +234,48 @@ object Catalog {
         FoodItem("juice", "Морс", "🧃", 6, food = 5, water = 50)
     )
 
+    /** Радости — желаемые (необязательные) покупки: поднимают настроение, но без них можно обойтись. */
+    val joys: List<JoyItem> = listOf(
+        JoyItem("icecream", "Мороженое", "🍦", 8, mood = 10, food = 5),
+        JoyItem("flower", "Цветок в горшке", "🪴", 15, mood = 10),
+        JoyItem("comics", "Книга комиксов", "📚", 20, mood = 15),
+        JoyItem("cinema", "Билет в кино", "🎬", 25, mood = 20),
+        JoyItem("toy", "Конструктор", "🧩", 30, mood = 25),
+        JoyItem("boardgame", "Настольная игра", "🎲", 45, mood = 30)
+    )
+
+    /** Еда на кухне (кадр макета «кухня»): съесть прямо сейчас. */
+    val meals: List<Meal> = listOf(
+        Meal("burger", "Бургер", "🍔", 20, food = 40, mood = 5),
+        Meal("apple", "Яблоко", "🍎", 6, food = 20, mood = 0)
+    )
+
+    /** Простая одежда нужна, красивая — желаемое. */
+    fun kindOf(item: ClothingItem): SpendKind = if (item.tier == Tier.SIMPLE) SpendKind.NEED else SpendKind.WANT
+
     fun clothing(id: String): ClothingItem? = clothes.firstOrNull { it.id == id }
     fun foodItem(id: String): FoodItem? = food.firstOrNull { it.id == id }
+    fun joy(id: String): JoyItem? = joys.firstOrNull { it.id == id }
+    fun meal(id: String): Meal? = meals.firstOrNull { it.id == id }
 }
+
+data class JoyItem(
+    val id: String,
+    val name: String,
+    val emoji: String,
+    val price: Int,
+    val mood: Int,
+    val food: Int = 0
+)
+
+data class Meal(
+    val id: String,
+    val name: String,
+    val emoji: String,
+    val price: Int,
+    val food: Int,
+    val mood: Int
+)
 
 // ───────────────────────────── Работа ─────────────────────────────
 
@@ -239,7 +323,13 @@ data class Choice(
     val water: Int = 0,
     val skill: Skill? = null,
     val skillPoints: Int = 0,
-    val prepaidNight: Boolean = false
+    val prepaidNight: Boolean = false,
+    /** Трата обязательная (еда, ночлег, починка), а не желаемая: так она попадёт в план. */
+    val need: Boolean = false,
+    /** Как меняется настроение Монтика. */
+    val mood: Int = 0,
+    /** Сколько монет сразу отложить (в копилку на цель, а если цели нет — в подушку безопасности). */
+    val save: Int = 0
 )
 
 data class Scenario(
@@ -257,28 +347,37 @@ object Scenarios {
     const val INTRO = "intro_wallet"
     /** Случайная неприятность: неожиданная трата, ради которой и копят подушку. */
     const val MISHAP = "event_key"
+    const val NEIGHBOR = "event_neighbor"
+    const val FOUND = "event_found"
+    const val GIFT = "event_gift"
+    const val SALE = "event_sale"
+
+    /** События дня: могут повторяться. Неприятность — одна из пяти, остальные — добрые. */
+    val EVENTS = listOf(MISHAP, NEIGHBOR, FOUND, GIFT, SALE)
+    val REPEATABLE: Set<String> = EVENTS.toSet()
 
     val all: List<Scenario> = listOf(
         Scenario(
             id = INTRO,
             title = "Первый кошелёк Монтика",
             emoji = "👛",
-            situation = "Монтик приехал в Нижний Новгород. В кошельке 50 монет. " +
-                "Еда стоит 10, ночь в домике — 20, новый рюкзак — 40, игрушка — 30. " +
-                "Помоги Монтику прожить первый день!",
+            situation = "Монтик переехал в Нижний Новгород и снял квартиру. Платить за неё нужно два раза в месяц — " +
+                "первый раз через 15 дней, 150 монет. Сейчас в кошельке 50 монет. " +
+                "Обед стоит 10, игрушка — 30, новый рюкзак — 40. Помоги Монтику прожить первый день!",
             lesson = Lesson.NEEDS,
             choices = listOf(
                 Choice(
-                    text = "Купить еду и ночь в домике (−30)",
+                    text = "Купить обед, а остальное сберечь (−10)",
                     rating = Rating.GREAT,
-                    outcome = "Монтик сыт и будет спать под крышей. В кошельке осталось 20 монет.",
-                    explanation = "Ты сначала оплатил нужное — еду и жильё. Именно так и нужно распределять деньги!",
-                    coins = -30, prepaidNight = true, skill = Skill.PLANNER, skillPoints = 2
+                    outcome = "Монтик сыт, а 40 монет остались — начало для квартиры и копилки.",
+                    explanation = "Ты сначала оплатил нужное — еду — и не потратил лишнего. " +
+                        "Скоро платить за квартиру, так что запас пригодится!",
+                    coins = -10, food = 45, need = true, skill = Skill.PLANNER, skillPoints = 2
                 ),
                 Choice(
                     text = "Купить игрушку (−30)",
                     rating = Rating.BAD,
-                    outcome = "Монтик рад игрушке, но остался голодным и без оплаченного ночлега.",
+                    outcome = "Монтик рад игрушке, но остался голодным, а денег на квартиру почти нет.",
                     explanation = "Игрушка — это желание, а еда и жильё — необходимость. Если потратить деньги на желания, " +
                         "на нужное может не хватить. Ничего страшного: теперь Монтик знает, что сначала нужно подумать о нужном.",
                     coins = -30, energy = -10, food = -30, water = -20
@@ -296,7 +395,7 @@ object Scenarios {
             id = MISHAP,
             title = "Потерялся ключ",
             emoji = "🔑",
-            situation = "Монтик потерял ключ от домика. Мастер сделает новый за 25 монет.",
+            situation = "Монтик потерял ключ от квартиры. Мастер сделает новый за 25 монет.",
             lesson = Lesson.EMERGENCY,
             coverFromCushion = true,
             choices = listOf(
@@ -315,6 +414,114 @@ object Scenarios {
                     explanation = "Неожиданные траты никуда не исчезают, если их отложить: ключ всё равно придётся сделать, " +
                         "а сил и времени потратится больше. Поэтому и нужен запас денег.",
                     energy = -25, food = -10
+                )
+            )
+        ),
+
+        // ── Добрые события дня ──
+        Scenario(
+            id = NEIGHBOR,
+            title = "Соседка просит помочь",
+            emoji = "👵",
+            situation = "Соседка Анна Петровна несёт тяжёлые сумки с рынка. Она предлагает 15 монет, если Монтик поможет донести их до пятого этажа.",
+            lesson = Lesson.WORK,
+            choices = listOf(
+                Choice(
+                    text = "Помочь соседке (+15, −10 сил)",
+                    rating = Rating.GREAT,
+                    outcome = "Сумки дома, соседка благодарит, а у Монтика +15 монет и отличное настроение.",
+                    explanation = "Деньги зарабатывают трудом. А помогать людям ещё и приятно!",
+                    coins = 15, energy = -10, mood = 10, skill = Skill.CREATOR, skillPoints = 1
+                ),
+                Choice(
+                    text = "Помочь бесплатно — по-соседски (−10 сил)",
+                    rating = Rating.GREAT,
+                    outcome = "Монтик помог и отказался от денег. Соседка угостила его пирожком!",
+                    explanation = "Не всё измеряется деньгами: доброе дело тоже ценно, а соседи помогают друг другу.",
+                    energy = -10, food = 15, mood = 15
+                ),
+                Choice(
+                    text = "Сказать, что сейчас некогда",
+                    rating = Rating.OK,
+                    outcome = "Соседка справилась сама. Ничего страшного — в другой раз можно помочь.",
+                    explanation = "Отказаться можно, если правда нет сил. Но небольшая работа — это возможность заработать."
+                )
+            )
+        ),
+        Scenario(
+            id = FOUND,
+            title = "Находка в кармане",
+            emoji = "🧥",
+            situation = "Монтик надел старую куртку и нашёл в кармане 10 монет! Что с ними сделать?",
+            lesson = Lesson.GOAL,
+            choices = listOf(
+                Choice(
+                    text = "Отложить (+10 в накопления)",
+                    rating = Rating.GREAT,
+                    outcome = "Десять монет отправились в накопления. Маленькие суммы складываются в большие!",
+                    explanation = "Неожиданные деньги удобно сразу отложить: их не было в плане, и без них бюджет уже сходился.",
+                    save = 10, mood = 5, skill = Skill.BANKER, skillPoints = 1
+                ),
+                Choice(
+                    text = "Купить мороженое (+10, потом −8)",
+                    rating = Rating.OK,
+                    outcome = "Мороженое было вкусным! Осталось 2 монеты.",
+                    explanation = "Маленькая радость — это нормально. Но если откладывать хотя бы часть, мечта станет ближе.",
+                    coins = 2, food = 10, mood = 10
+                )
+            )
+        ),
+        Scenario(
+            id = GIFT,
+            title = "Подарок от бабушки",
+            emoji = "🎁",
+            situation = "Бабушка прислала открытку и 30 монет: «Внучку на радости и на мечту!» Как поступить?",
+            lesson = Lesson.BUDGET,
+            choices = listOf(
+                Choice(
+                    text = "20 отложить, 10 — на радость",
+                    rating = Rating.GREAT,
+                    outcome = "20 монет — в накопления, а на 10 Монтик купил маленькую радость. И мечта ближе, и настроение хорошее!",
+                    explanation = "Деньги можно разделить: часть на желания, часть — на цель. Так и радость есть, и накопления растут.",
+                    coins = 10, save = 20, mood = 12, skill = Skill.PLANNER, skillPoints = 1
+                ),
+                Choice(
+                    text = "Отложить все 30",
+                    rating = Rating.GREAT,
+                    outcome = "Все 30 монет — в накопления. Бабушка бы гордилась!",
+                    explanation = "Отложить всё — тоже хороший выбор, особенно когда есть большая цель.",
+                    save = 30, mood = 5, skill = Skill.BANKER, skillPoints = 1
+                ),
+                Choice(
+                    text = "Потратить все 30 сразу",
+                    rating = Rating.OK,
+                    outcome = "Монтик купил сладостей и игрушку. Весело, но накопления не выросли.",
+                    explanation = "Потратить подарок можно, но если отложить хотя бы часть, до мечты будет ближе.",
+                    mood = 15
+                )
+            )
+        ),
+        Scenario(
+            id = SALE,
+            title = "Скидка 50%!",
+            emoji = "🏷",
+            situation = "В витрине яркая табличка: «Светящийся брелок — всего 20 монет вместо 40! Только сегодня!» " +
+                "Монтик не собирался его покупать.",
+            lesson = Lesson.SALE,
+            choices = listOf(
+                Choice(
+                    text = "Подумать: а нужна ли мне эта вещь? Пройти мимо",
+                    rating = Rating.GREAT,
+                    outcome = "Монтик решил, что брелок ему не нужен. 20 монет остались в кошельке.",
+                    explanation = "Скидка экономит деньги, только если вещь и так была нужна. Иначе это просто лишняя трата.",
+                    mood = 3, skill = Skill.PLANNER, skillPoints = 1
+                ),
+                Choice(
+                    text = "Купить со скидкой (−20)",
+                    rating = Rating.OK,
+                    outcome = "Брелок красиво светится, но в плане его не было — 20 монет ушли на желание.",
+                    explanation = "«Только сегодня» торопит нас решать быстро. Хорошая покупка — та, о которой подумал заранее.",
+                    coins = -20, mood = 6
                 )
             )
         ),
@@ -429,14 +636,14 @@ object Scenarios {
                     rating = Rating.GREAT,
                     outcome = "Ноги не устали, прогулка удалась!",
                     explanation = "Ты сравнил не только цену, но и пользу. Такая обувь прослужит долго.",
-                    coins = -30, skill = Skill.PLANNER, skillPoints = 2
+                    coins = -30, need = true, skill = Skill.PLANNER, skillPoints = 2
                 ),
                 Choice(
                     text = "Дешёвая обувь (−10)",
                     rating = Rating.BAD,
                     outcome = "К вечеру подошва отвалилась, ноги натёрты.",
                     explanation = "Дешёвое — не всегда выгодное: если вещь быстро ломается, придётся покупать снова.",
-                    coins = -10, energy = -25
+                    coins = -10, energy = -25, need = true
                 ),
                 Choice(
                     text = "Идти в старой порванной обуви",
@@ -489,14 +696,14 @@ object Scenarios {
                     rating = Rating.GREAT,
                     outcome = "Сытно и недорого!",
                     explanation = "Ты выбрал хорошее соотношение цены и пользы.",
-                    coins = -15, food = 50, skill = Skill.PLANNER, skillPoints = 1
+                    coins = -15, food = 50, need = true, skill = Skill.PLANNER, skillPoints = 1
                 ),
                 Choice(
                     text = "Только чак-чак (−10)",
                     rating = Rating.OK,
                     outcome = "Вкусно, но быстро снова хочется есть.",
                     explanation = "Сладкое дёшево, но не насыщает. Сначала — нужное, потом — лакомство.",
-                    coins = -10, food = 15
+                    coins = -10, food = 15, need = true
                 ),
                 Choice(
                     text = "Красивое кафе (−40)",
@@ -529,14 +736,14 @@ object Scenarios {
                     rating = Rating.GREAT,
                     outcome = "Монтик сыт, выспался в тёплом отеле и готов гулять дальше.",
                     explanation = "Сначала нужное, а сувенир — если останутся деньги. Так и строится бюджет.",
-                    coins = -120, energy = 20, food = 40, water = 20, skill = Skill.TRAVELER, skillPoints = 2
+                    coins = -120, energy = 20, food = 40, water = 20, need = true, skill = Skill.TRAVELER, skillPoints = 2
                 ),
                 Choice(
                     text = "Только скромная еда и ночёвка у вокзала (−50)",
                     rating = Rating.OK,
                     outcome = "Денег потрачено мало, но Монтик плохо выспался.",
                     explanation = "Экономить можно, но отдых нужен для сил и заработка.",
-                    coins = -50, energy = -25, food = 20
+                    coins = -50, energy = -25, food = 20, need = true
                 ),
                 Choice(
                     text = "Купить всё, включая сувенир (−150)",
@@ -622,7 +829,7 @@ object Scenarios {
                     outcome = "Билет домой в кармане. Теперь можно отдыхать спокойно.",
                     explanation = "В поездке сначала откладывают на дорогу домой, а тратят то, что осталось. " +
                         "Так точно не застрянешь без денег далеко от дома.",
-                    coins = -60, skill = Skill.TRAVELER, skillPoints = 2
+                    coins = -60, need = true, skill = Skill.TRAVELER, skillPoints = 2
                 ),
                 Choice(
                     text = "Отложить на потом и пойти отдыхать",
@@ -772,6 +979,8 @@ object Medals {
     const val STYLE_THREE = "style_three"
     const val DEPOSIT_MADE = "deposit_made"
     const val LOAN_REPAID = "loan_repaid"
+    const val PIGGY_STARTED = "piggy_started"
+    const val GOAL_REACHED = "goal_reached"
 
     val all: List<Medal> = listOf(
         Medal("first_pay", "💰", "Первая зарплата", "Отработать первую смену") { it.shifts >= 1 },
@@ -786,6 +995,19 @@ object Medals {
         },
         Medal("sea", "🌊", "Отпускник", "Накопить 500 монет и съездить к морю в Сочи") { "sochi" in it.completedTrips },
         Medal("week", "📅", "Неделя самостоятельности", "Прожить 7 игровых дней") { it.day >= 7 },
+        Medal("cashier", "🛒", "Кассир", "Отработать 5 смен в магазине") { it.shopShifts >= 5 },
+        Medal("manager", "🏅", "Менеджер зала", "Дослужиться до менеджера зала") { ShopWork.rank(it) == ShopRank.MANAGER },
+        Medal("rich20k", "💎", "Двадцать тысяч", "Накопить 20 000 монет") { BusinessEngine.WEALTH_MARK in it.milestones },
+        Medal("owner", "🏬", "Владелец магазина", "Открыть свой магазин") { it.business?.isOpen == true },
+        Medal("planner", "📋", "Три звезды", "Получить все три звезды привычек за период") {
+            it.periods.any { p -> p.stars == 3 }
+        },
+        Medal("goal", "🎯", "Мечта сбылась", "Накопить в копилке на цель и достичь её") { GOAL_REACHED in it.milestones },
+        Medal("adproof", "🛡", "Рекламе не поддаюсь", "Закрыть три рекламы, не купив") { it.adsDeclined >= 3 },
+        Medal("newhome", "🏡", "Новоселье", "Переехать в уютную квартиру") { it.housing >= 2 || "moved_up" in it.milestones },
+        Medal("tasks", "📝", "Отличник заданий", "Пройти все финансовые задания") { st ->
+            Tasks.all.all { t -> t.id in st.taskResults }
+        },
         Medal("scholar", "🎓", "Всезнайка", "Узнать все финансовые темы игры") {
             it.seenLessons.size >= Lesson.values().size
         }

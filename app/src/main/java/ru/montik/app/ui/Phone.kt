@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,12 +52,19 @@ fun PhoneScreen(vm: GameViewModel) {
         PhoneApp("💼", "Работа", if (vm.workBlocker != null) "!" else null) { vm.goTo(Screen.Work) },
         PhoneApp("📈", "Прогресс") { vm.goTo(Screen.Diary) },
         PhoneApp("🏦", "Банк", if (s.debt > 0) "долг" else null) { vm.goTo(Screen.Bank) },
-        PhoneApp("🛍", "Магазин") { vm.goTo(Screen.Shop) },
+        PhoneApp("🛍", "Магазин") { vm.goTo(Screen.Grocery) },
         PhoneApp("🎨", "Профиль") { vm.startRedraw() },
         PhoneApp("⚙️", "Настройки") { vm.openParent() },
         PhoneApp("⏰", "Будильник") { vm.goTo(Screen.Sleep) }
     )
+    // Телефон из Figma, если плитки fg_phone_i1…i8 добавлены в проект; иначе — нарисованный.
+    val names = Array(8) { "fg_phone_i${it + 1}" }
+    if (rememberHasArt(*names)) FigmaPhone(vm, apps) else ClassicPhone(vm, apps)
+}
 
+@Composable
+private fun ClassicPhone(vm: GameViewModel, apps: List<PhoneApp>) {
+    val s = vm.state
     Box(
         Modifier
             .fillMaxSize()
@@ -145,5 +155,63 @@ private fun AppTile(app: PhoneApp, modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Телефон по макету: лаймовый фон, «Привет!», сетка плиток 3×3 (плитки — картинки из Figma
+ * с подписями внутри). Плитки 121×127 с шагом 131×141, как в кадре телефона.
+ */
+@Composable
+private fun FigmaPhone(vm: GameViewModel, apps: List<PhoneApp>) {
+    DesignCanvas(
+        background = {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(Color(0xFFBDF88A), Color(0xFFB2F276))))
+            )
+        }
+    ) {
+        // Глянцевые «капли» справа, как на макете.
+        SoftGlow(cx = 360f, cy = 70f, w = 220f, h = 200f, color = Color(0xFFD6FF8E), peak = 0.85f)
+        SoftGlow(cx = 380f, cy = 860f, w = 320f, h = 280f, color = Color(0xFF9CEC4F), peak = 0.9f)
+
+        Box(Modifier.at(14f, 14f)) { BackCircle({ vm.back() }) }
+        Box(Modifier.at(230f, 18f, 168f, 44f), contentAlignment = Alignment.CenterEnd) {
+            CoinPill(vm.state.coins)
+        }
+
+        DText("Привет!", 18f, 84f, 320f, 44f, mono = false, lineHeight = 1.1f)
+        DText("Хорошего дня ☺", 18f, 142f, 320f, 20f, bold = false, mono = false)
+
+        apps.forEachIndexed { i, app ->
+            val x = 14.5f + (i % 3) * 131f
+            val y = 200f + (i / 3) * 141f
+            Box(
+                Modifier
+                    .at(x, y, 121f, 127f)
+                    .clip(RoundedCornerShape(d(20f)))
+                    .clickable(onClick = app.onOpen)
+            ) {
+                ArtImage("fg_phone_i${i + 1}", Modifier.fillMaxSize(), ContentScale.Crop) {}
+                if (app.badge != null) {
+                    Surface(
+                        shape = MontikShapes.Chip,
+                        color = MontikColors.Bad,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
+                    ) {
+                        Text(
+                            app.badge,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        DText("Лучше с каждым днём ♥", 18f, 846f, 240f, 16f, bold = false, mono = false)
     }
 }
