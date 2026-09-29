@@ -5,7 +5,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.wrapContentSize
@@ -29,6 +37,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import ru.montik.app.GameViewModel
 import ru.montik.app.Screen
 import ru.montik.app.game.GameEngine
@@ -164,7 +173,29 @@ fun FigmaStory(onDone: () -> Unit) {
 
     BackHandler(enabled = i > 0) { index = i - 1 }
 
-    DesignCanvas(background = { StoryBackground(frame) }) {
+    // Листать историю свайпом: провёл пальцем влево или вправо — следующая страница.
+    // (Кнопка «→» внизу на телефонах уходит под системную панель навигации.)
+    val next = { if (last) onDone() else index = i + 1 }
+    val navBottomPx = WindowInsets.navigationBars.getBottom(LocalDensity.current)
+    val swipe = Modifier.pointerInput(i) {
+        var dragged = 0f
+        var fired = false
+        detectHorizontalDragGestures(
+            onDragStart = { dragged = 0f; fired = false },
+            onHorizontalDrag = { change, amount ->
+                change.consume()
+                dragged += amount
+                if (!fired && kotlin.math.abs(dragged) > 60.dp.toPx()) {
+                    fired = true
+                    next()
+                }
+            }
+        )
+    }
+
+    DesignCanvas(modifier = swipe, background = { StoryBackground(frame) }) {
+        // Точки и кнопка поднимаются над системной панелью навигации, если она их закрывает.
+        val lift = (navBottomPx / LocalDensity.current.density / u + 8f).coerceAtMost(90f)
         // Метка места: булавка, город и год.
         val pin = frame.pin
         val head = frame.head
@@ -180,13 +211,32 @@ fun FigmaStory(onDone: () -> Unit) {
         // Белая карточка с текстом.
         val card = frame.card
         if (card != null) {
-            Box(
-                Modifier
-                    .at(card.x, card.y, card.w, card.h)
-                    .clip(RoundedCornerShape(d(20f)))
-                    .background(Color.White)
-            )
-            DText(page.text, frame.textX, frame.textY, frame.textW, 20f)
+            // Карточка растёт вверх, если текст не помещается, и стоит над кнопкой и точками.
+            Box(Modifier.at(card.x, 0f, card.w, card.y + card.h - lift), contentAlignment = Alignment.BottomStart) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = d(card.h))
+                        .clip(RoundedCornerShape(d(20f)))
+                        .background(Color.White)
+                        .padding(
+                            start = d(frame.textX - card.x),
+                            end = d((card.x + card.w) - (frame.textX + frame.textW)).coerceAtLeast(d(8f)),
+                            top = d(frame.textY - card.y),
+                            bottom = d(12f)
+                        ),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        page.text,
+                        color = MontikColors.Ink,
+                        fontSize = fs(20f),
+                        lineHeight = fs(23f, false),
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = MontikFont
+                    )
+                }
+            }
         } else {
             // Последняя страница: крупная надпись сверху, без карточки.
             DText(
@@ -196,7 +246,7 @@ fun FigmaStory(onDone: () -> Unit) {
             )
         }
 
-        StoryDots(frame.dotsX, frame.dotsY, activeDot)
+        StoryDots(frame.dotsX, frame.dotsY - lift, activeDot)
 
         val charArt = frame.charArt
         val char = frame.char
@@ -211,8 +261,14 @@ fun FigmaStory(onDone: () -> Unit) {
             Art(charArt, char.x, char.y, char.w, char.h, ContentScale.Fit)
         }
 
-        StoryNext(frame.nextX, frame.nextY, frame.limeNext) {
-            if (last) onDone() else index = i + 1
+        StoryNext(frame.nextX, frame.nextY - lift, frame.limeNext) { next() }
+        // Подсказка для ребёнка.
+        if (!last) {
+            DText(
+                "Листай → свайпом",
+                frame.dotsX - 150f, frame.dotsY - lift - 1f, 140f, 12f,
+                bold = false, color = Color.White, mono = false, align = TextAlign.End, softWrap = false
+            )
         }
     }
 }

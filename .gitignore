@@ -14,3 +14,12 @@
 keystore.properties
 *.jks
 *.keystore
+.kotlin/
+
+# Рабочие файлы в корне проекта (исходники картинок, записи экрана, старые копии) — в репозиторий не нужны
+/*.mp4
+/*.png
+/*.webp
+/*.ttf
+/montik/
+/MontikUpdates/
