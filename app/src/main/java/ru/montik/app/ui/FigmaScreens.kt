@@ -193,6 +193,13 @@ fun FigmaStory(onDone: () -> Unit) {
     }
 
     DesignCanvas(modifier = swipe, background = { StoryBackground(frame) }) {
+        // Картинка истории — в координатах холста, как в макете: тогда Монтик стоит там же, где в Figma
+        // (на набережной, а не в воде), даже если холст меньше экрана из-за панели навигации.
+        if (frame.cropBg) {
+            Art(frame.bg, -0.2646f * DESIGN_W, -0.2631f * DESIGN_H, 1.2646f * DESIGN_W, 1.2633f * DESIGN_H, ContentScale.FillBounds)
+        } else {
+            Art(frame.bg, 0f, 0f, DESIGN_W, DESIGN_H, ContentScale.FillBounds)
+        }
         // Холст уже стоит над системной панелью навигации (см. DesignCanvas), поэтому ничего не поднимаем.
         val lift = 0f
         // Метка места: булавка, город и год.

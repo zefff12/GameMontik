@@ -58,7 +58,12 @@ private const val MONO_SCALE = 0.9f
 private const val SANS_SCALE = 0.94f
 
 @Stable
-class DesignScope(val u: Float, private val density: Density) {
+class DesignScope(
+    val u: Float,
+    private val density: Density,
+    /** Сколько (в единицах макета) экран шире холста с каждой стороны. */
+    val bleed: Float = 0f
+) {
     /** Число из Figma → размер в dp. */
     fun d(v: Float): Dp = (v * u).dp
 
@@ -71,10 +76,16 @@ class DesignScope(val u: Float, private val density: Density) {
      * кадра (улица 768×1152, касса 520×924…): без него Compose центрирует такой элемент и он
      * съезжает влево-вверх на половину «лишнего» размера, а надписи поверх — нет.
      */
-    fun Modifier.at(x: Float, y: Float, w: Float, h: Float): Modifier =
-        this.absoluteOffset(d(x), d(y))
+    fun Modifier.at(x: Float, y: Float, w: Float, h: Float): Modifier {
+        // Фон во всю ширину кадра (картинка сцены, затемнение) продлеваем на поля по бокам экрана,
+        // чтобы не было полос. Персонажи и кнопки не трогаем — они не растягиваются.
+        val full = bleed > 0f && x <= 0.5f && x + w >= DESIGN_W - 0.5f
+        val xx = if (full) x - bleed else x
+        val ww = if (full) w + 2f * bleed else w
+        return this.absoluteOffset(d(xx), d(y))
             .wrapContentSize(Alignment.TopStart, unbounded = true)
-            .requiredSize(d(w), d(h))
+            .requiredSize(d(ww), d(h))
+    }
 
     fun Modifier.at(x: Float, y: Float): Modifier = this.absoluteOffset(d(x), d(y))
 }
@@ -102,25 +113,18 @@ fun DesignCanvas(
         BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = navBottom), contentAlignment = Alignment.Center) {
             val fitW = maxWidth.value / DESIGN_W
             val fitH = maxHeight.value / DESIGN_H
-            val u: Float
-            val stretchX: Float
-            if (fitW >= fitH && fitW / fitH <= 1.10f) {
+            val u = if (fitW >= fitH && fitW / fitH <= 1.15f) {
                 // Экран чуть шире макета (так бывает из-за панели навигации): холст занимает всю высоту,
-                // а по ширине чуть растягивается — без полос по бокам и без обрезки сверху и снизу.
-                u = fitH
-                stretchX = fitW / fitH
+                // пропорции не меняются (персонажи не сплющиваются), а фон сцены продлевается на поля.
+                fitH
             } else {
                 val fit = minOf(fitW, fitH)
                 val cover = maxOf(fitW, fitH)
-                u = if (cover / fit <= 1.06f) cover else fit
-                stretchX = 1f
+                if (cover / fit <= 1.06f) cover else fit
             }
-            val scope = remember(u, density) { DesignScope(u, density) }
-            Box(
-                Modifier
-                    .requiredSize((DESIGN_W * u).dp, (DESIGN_H * u).dp)
-                    .graphicsLayer { scaleX = stretchX }
-            ) {
+            val bleed = ((maxWidth.value / u - DESIGN_W) / 2f).coerceAtLeast(0f)
+            val scope = remember(u, density, bleed) { DesignScope(u, density, bleed) }
+            Box(Modifier.requiredSize((DESIGN_W * u).dp, (DESIGN_H * u).dp)) {
                 scope.content()
             }
         }
@@ -147,7 +151,10 @@ fun DesignScope.Art(
     h: Float,
     scale: ContentScale = ContentScale.Crop
 ) {
-    ArtImage(name, Modifier.at(x, y, w, h), scale) {}
+    // Фон, продлённый на поля экрана, растягиваем по рамке: так нарисованное на картинке остаётся
+    // на своих местах относительно кнопок поверх неё.
+    val full = bleed > 0f && x <= 0.5f && x + w >= DESIGN_W - 0.5f
+    ArtImage(name, Modifier.at(x, y, w, h), if (full) ContentScale.FillBounds else scale) {}
 }
 
 /** Невидимая область нажатия в координатах макета. */
