@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.montik.app.GameViewModel
 import ru.montik.app.Screen
+import ru.montik.app.game.Barter
 
 private class PhoneApp(
     val emoji: String,
@@ -51,11 +52,16 @@ fun PhoneScreen(vm: GameViewModel) {
         PhoneApp("🗺", "Карта") { vm.goTo(Screen.Travel) },
         PhoneApp("💼", "Работа", if (vm.workBlocker != null) "!" else null) { vm.goTo(Screen.Work) },
         PhoneApp("📈", "Прогресс") { vm.goTo(Screen.Diary) },
-        PhoneApp("🏦", "Банк", if (s.debt > 0) "долг" else null) { vm.goTo(Screen.Bank) },
+        PhoneApp("🏦", "Банк", if (s.debt > 0 || s.credits.isNotEmpty()) "долг" else null) { vm.goTo(Screen.Bank) },
         PhoneApp("🛍", "Магазин") { vm.goTo(Screen.Grocery) },
         PhoneApp("🎨", "Профиль") { vm.startRedraw() },
         PhoneApp("⚙️", "Настройки") { vm.openParent() },
-        PhoneApp("⏰", "Будильник") { vm.goTo(Screen.Sleep) }
+        PhoneApp("⏰", "Будильник") { vm.goTo(Screen.Sleep) },
+        // Рынок енота Сергеевича: открыт раз в 10 игровых дней.
+        PhoneApp("🦝", "Рынок", if (Barter.due(s)) "!" else null) {
+            if (Barter.due(s)) vm.openMarket()
+            else vm.say("🦝 Енот Сергеевич откроет рынок через ${Barter.INTERVAL_DAYS - (s.day - s.barterDay)} дн. Он пришлёт сообщение!")
+        }
     )
     // Телефон из Figma, если плитки fg_phone_i1…i8 добавлены в проект; иначе — нарисованный.
     val names = Array(8) { "fg_phone_i${it + 1}" }
@@ -194,7 +200,21 @@ private fun FigmaPhone(vm: GameViewModel, apps: List<PhoneApp>) {
                     .clip(RoundedCornerShape(d(20f)))
                     .clickable(onClick = app.onOpen)
             ) {
-                ArtImage("fg_phone_i${i + 1}", Modifier.fillMaxSize(), ContentScale.Crop) {}
+                ArtImage("fg_phone_i${i + 1}", Modifier.fillMaxSize(), ContentScale.Crop) {
+                    Box(Modifier.fillMaxSize().background(Color(0xFFF5F6EB)), contentAlignment = Alignment.Center) {
+                        Text(app.emoji, fontSize = 40.sp)
+                    }
+                }
+                // У новой плитки «Рынок» подпись не нарисована в картинке — пишем её сами.
+                if (i >= 8) {
+                    Text(
+                        app.label,
+                        color = Color.Black,
+                        fontSize = fs(17f, false),
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = d(9f))
+                    )
+                }
                 if (app.badge != null) {
                     Surface(
                         shape = MontikShapes.Chip,

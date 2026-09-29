@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Сам интерфейс рисует Jetpack Compose; здесь только тема окна. -->
+    <style name="Theme.Montik" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/montik_sky</item>
+        <item name="android:statusBarColor">@color/montik_sky</item>
+        <item name="android:navigationBarColor">@color/montik_sky</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

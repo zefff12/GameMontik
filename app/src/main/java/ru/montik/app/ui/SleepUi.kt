@@ -38,6 +38,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import kotlinx.coroutines.delay
 import ru.montik.app.GameViewModel
+import ru.montik.app.data.TrustedClock
 import ru.montik.app.WakeUi
 import ru.montik.app.game.GameEngine
 import ru.montik.app.game.Rules
@@ -67,10 +71,11 @@ import kotlin.math.sin
 /** Настоящее время в миллисекундах, обновляется раз в [periodMs]: от него считаются виртуальные часы. */
 @Composable
 fun rememberNowMs(periodMs: Long = 1000L): Long {
-    val now = produceState(initialValue = System.currentTimeMillis()) {
+    // «Честные» часы: перевод времени в настройках телефона не ускоряет игру.
+    val now = produceState(initialValue = TrustedClock.now()) {
         while (true) {
             delay(periodMs)
-            value = System.currentTimeMillis()
+            value = TrustedClock.now()
         }
     }
     return now.value
@@ -94,6 +99,7 @@ fun SleepFlow(vm: GameViewModel) {
             status = status,
             place = session.place,
             art = sleepArt(vm.state),
+            vm = vm,
             onWakeEarly = { vm.wakeUp() }
         )
     }
@@ -102,8 +108,15 @@ fun SleepFlow(vm: GameViewModel) {
 // ───────────────────────── 1. Монтик спит ─────────────────────────
 
 @Composable
-fun SleepingScreen(status: SleepStatus, place: SleepPlace, art: String = "fg_room_night", onWakeEarly: () -> Unit) {
+fun SleepingScreen(
+    status: SleepStatus,
+    place: SleepPlace,
+    art: String = "fg_room_night",
+    vm: GameViewModel? = null,
+    onWakeEarly: () -> Unit
+) {
     val hasArt = rememberHasArt(art)
+    val spot = BED_SPOTS[art]
     DesignCanvas(
         background = {
             ArtImage(art, Modifier.fillMaxSize(), ContentScale.Crop) {
@@ -117,6 +130,15 @@ fun SleepingScreen(status: SleepStatus, place: SleepPlace, art: String = "fg_roo
     ) {
         if (!hasArt) {
             Text("😴", modifier = Modifier.at(150f, 470f), fontSize = fs(96f, false))
+        }
+
+        // Твой Монтик спит в кровати: комната (белый человечек из неё стёрт) → Монтик на подушке →
+        // одеяло из той же картинки поверх него (<art>_front), чтобы он был «под одеялом».
+        if (hasArt && spot != null && vm != null && place != SleepPlace.BENCH) {
+            Art(art, 0f, 0f, DESIGN_W, DESIGN_H, ContentScale.FillBounds)
+            SleepingMontik(vm, spot)
+            if (rememberHasArt(art + "_front")) Art(art + "_front", 0f, 0f, DESIGN_W, DESIGN_H, ContentScale.FillBounds)
+            if (spot.night != Color.Transparent) Box(Modifier.at(0f, 0f, DESIGN_W, DESIGN_H).background(spot.night))
         }
 
         // «Z-z-z» поднимаются над кроватью.
@@ -203,6 +225,42 @@ fun SleepingScreen(status: SleepStatus, place: SleepPlace, art: String = "fg_roo
                 fontWeight = FontWeight.Bold
             )
         }
+    }
+}
+
+/** Где на картинке комнаты лежит голова Монтика: рамка скина в координатах макета и ночная тень. */
+private class BedSpot(val x: Float, val y: Float, val size: Float, val shade: Color, val rotation: Float = -38f, val night: Color = Color.Transparent)
+
+private val BED_SPOTS = mapOf(
+    "fg_room_night" to BedSpot(10.8f, 425.2f, 132.3f, Color(0x54182048)),
+    "fg_room2_sleep" to BedSpot(21.5f, 370.4f, 88.1f, Color(0x99121630)),
+    "fg_room3_sleep" to BedSpot(18.1f, 396.3f, 100.3f, Color(0x8C121630)),
+    // Гостиница в путешествии: подушки справа, в комнате включён вечерний свет.
+    "fg_trip_hotel" to BedSpot(282f, 430f, 128f, Color(0x33121630), rotation = 38f, night = Color(0x66101830))
+)
+
+/** Монтик лежит на подушке: повёрнут на бок и чуть затенён, как вся комната ночью. */
+@Composable
+private fun DesignScope.SleepingMontik(vm: GameViewModel, spot: BedSpot) {
+    Box(
+        Modifier
+            .at(spot.x, spot.y, spot.size, spot.size)
+            .graphicsLayer {
+                rotationZ = spot.rotation
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
+            .drawWithContent {
+                drawContent()
+                drawRect(spot.shade, blendMode = BlendMode.SrcAtop)
+            }
+    ) {
+        MontikView(
+            sprite = vm.sprite,
+            state = vm.state,
+            boxSize = d(spot.size),
+            palette = heroPalette(vm.state),
+            still = true
+        )
     }
 }
 
@@ -389,7 +447,7 @@ fun WakeScreen(vm: GameViewModel, ui: WakeUi) {
     ) {
         // Монтик уже стоит возле кровати.
         Box(Modifier.at(160f, 610f, 240f, 240f), contentAlignment = Alignment.BottomCenter) {
-            MontikView(vm.sprite, s, d(230f), heroPalette(s), standing = true)
+            MontikView(vm.sprite, s, d(230f), heroPalette(s))
         }
 
         // Итоги сна.

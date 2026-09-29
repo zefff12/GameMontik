@@ -57,6 +57,8 @@ fun FridgeScreen(vm: GameViewModel) {
     }) {
         if (rememberHasArt("fg_fridge_bg")) Art("fg_fridge_bg", 0f, 0f, DESIGN_W, 916f, ContentScale.FillBounds)
         else DText("🧊 Холодильник", 20f, 40f, 372f, 26f, align = TextAlign.Center)
+        // Белый человечек из макета стёрт — у холодильника стоит твой Монтик.
+        SceneMontik(vm, -18f, 712f, 190f)
 
         // Сытость и вода — чтобы видеть, что продукт помог.
         Box(

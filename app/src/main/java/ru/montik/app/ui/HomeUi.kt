@@ -610,91 +610,38 @@ fun KitchenScreen(vm: GameViewModel) {
     val nowMs = rememberNowMs()
     val minutes = VirtualClock.timeOfDay(VirtualClock.now(s, nowMs))
     val bgName = kitchenArt(s, minutes / 60)
-    val burger = Catalog.meal("burger")!!
-    val apple = Catalog.meal("apple")!!
-    val hasPanel = rememberHasArt("fg_kitchen_panel")
 
     DesignCanvas(background = {
         ArtImage(bgName, Modifier.fillMaxSize(), ContentScale.Crop) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFFF6E7CF), Color(0xFFD9B98E)))))
         }
     }) {
-        // Доска магнитов из поездок — между плашками и Монтиком.
-        MagnetBoard(s, 118f, 180f)
+        // Магниты из поездок теперь висят на холодильнике (кадр Frame 38): кнопка «Холодильник» слева.
         HomeHud(vm, minutes, helpY = 528f, helpX = 8f)
         // Монтик отвечает на нажатие: прыжок, звук и реплика.
         TalkingMontik(vm, 96f, 350f, 220f, 230f, heroSize = 210f, bubbleX = 40f, bubbleY = 282f, bubbleW = 240f)
 
-        // Панель еды из макета (x 11, y 586, 391×261).
-        if (hasPanel) {
-            Art("fg_kitchen_panel", 11f, 586f, 391f, 261f, ContentScale.FillBounds)
-        } else {
-            Box(
-                Modifier
-                    .at(22f, 600f, 368f, 236f)
-                    .clip(RoundedCornerShape(d(34f)))
-                    .background(Color(0xFFF7FBEF))
-                    .border(d(5f), Color(0xFF6DBE45), RoundedCornerShape(d(34f)))
-            )
-            FoodCard(burger.emoji, "+${burger.food}", 48f)
-            FoodCard(apple.emoji, "+${apple.food}", 146f)
-            FoodCard("🚫", "0", 244f)
-            Box(
-                Modifier.at(318f, 668f, 60f, 60f).clip(CircleShape).background(Color(0xFF4CC03A)),
-                contentAlignment = Alignment.Center
-            ) { Text("+", color = Color.White, fontSize = fs(34f, false), fontWeight = FontWeight.Bold) }
-            DText("Съесть", 56f, 726f, 80f, 15f, mono = false, align = TextAlign.Center)
-            DText("Съесть", 154f, 726f, 80f, 15f, mono = false, align = TextAlign.Center)
-            DText("Не есть", 252f, 726f, 80f, 15f, mono = false, align = TextAlign.Center)
-            DText("Сытость", 150f, 758f, 112f, 16f, mono = false, align = TextAlign.Center)
-        }
-        // Цены: в макете их нет, а ребёнок должен видеть цену до покупки (ТЗ 2.5.6).
-        PriceTag(burger.price, 54f, 647f)
-        PriceTag(apple.price, 152f, 647f)
-        // Шкала сытости: в картинке панели дорожка пустая, заполнение рисуется по текущему значению.
-        Box(
-            Modifier
-                .at(79f, 784f, 255f, 19f)
-                .clip(RoundedCornerShape(d(9.5f)))
-                .background(Color(0xFFE8E8DF))
-        ) {
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(s.food.coerceIn(0, 100) / 100f)
-                    .clip(RoundedCornerShape(d(9.5f)))
-                    .background(Brush.horizontalGradient(listOf(Color(0xFF6DBE45), Color(0xFF3E9E2E))))
-            )
-            Text(
-                "${s.food}/100",
-                modifier = Modifier.align(Alignment.Center),
-                color = MontikColors.Ink,
-                fontSize = fs(11f, false),
-                fontWeight = FontWeight.Bold
-            )
-        }
-        // Нажатия: «Съесть» бургер и яблоко, «Не есть», «+» — магазин.
-        // Карточки сняты с картинки панели (1536×1024 → 391×261).
-        val fb = rememberFeedback()
-        Hit(50f, 642f, 90f, 118f) { if (s.coins >= burger.price) fb.good() else fb.bad(); vm.eatMeal(burger.id) }
-        Hit(147f, 642f, 82f, 118f) { if (s.coins >= apple.price) fb.good() else fb.bad(); vm.eatMeal(apple.id) }
-        Hit(238f, 642f, 79f, 118f) { fb.tap(); vm.skipMeal() }
-        Hit(318f, 682f, 60f, 64f) { vm.goTo(Screen.Grocery) }
+        // Панели еды на кухне больше нет: Монтик ест то, что лежит в холодильнике (кнопка слева),
+        // а продукты покупает в магазине (кнопка «🛒 Магазин» ниже или приложение в телефоне).
+        GreenPanelButton("🛒 Магазин", 12f, 856f, 130f, 40f) { vm.goTo(Screen.Grocery) }
 
-        // Кнопка «Холодильник» (новый макет, x 314, y 482, 99×148): там лежат продукты из магазина.
+        // Кнопка «Холодильник» (картинка из макета 99×148): слева, чтобы не заходить на кнопки справа.
+        // Сначала — закрытый холодильник с магнитами из поездок, потом — продукты внутри.
+        val fx = 6f
+        val fy = 384f
         if (rememberHasArt("fg_fridge_btn")) {
-            Art("fg_fridge_btn", 313.9f, 482f, 98.7f, 148f, ContentScale.FillBounds)
+            Art("fg_fridge_btn", fx, fy, 84f, 126f, ContentScale.FillBounds)
         } else {
-            HudChip("🧊 Холодильник", 286f, 520f, 120f) { vm.goTo(Screen.Fridge) }
+            HudChip("🧊 Холодильник", fx, fy + 40f, 110f) { vm.goTo(Screen.FridgeDoor) }
         }
         val inFridge = ru.montik.app.game.Grocery.fridgeCount(s)
         if (inFridge > 0) {
             Box(
-                Modifier.at(378f, 512f, 24f, 24f).clip(CircleShape).background(Color(0xFFF2A516)),
+                Modifier.at(fx + 62f, fy + 22f, 24f, 24f).clip(CircleShape).background(Color(0xFFF2A516)),
                 contentAlignment = Alignment.Center
             ) { Text("$inFridge", color = Color.White, fontSize = fs(12f, false), fontWeight = FontWeight.Bold) }
         }
-        Hit(328f, 512f, 70f, 88f) { vm.goTo(Screen.Fridge) }
+        Hit(fx + 6f, fy + 20f, 72f, 100f) { vm.goTo(Screen.FridgeDoor) }
 
         InfoPanel(vm, kitchen = true)
     }

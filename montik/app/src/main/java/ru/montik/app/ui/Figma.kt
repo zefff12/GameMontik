@@ -1,0 +1,190 @@
+package ru.montik.app.ui
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
+
+/*
+ * Оформление «как в Figma». Кадр макета — 412×917. Экраны ниже рисуются в координатах Figma
+ * (x, y, ширина, высота — те же числа, что в макете), а DesignCanvas сам подгоняет кадр под
+ * экран телефона или планшета. Фоновые иллюстрации растягиваются на весь экран.
+ *
+ * Иллюстрации лежат в res/drawable-nodpi под именами fg_*.webp / fg_*.png (список — в
+ * docs/DESIGN_ASSETS.md). Пока их нет, игра показывает прежние нарисованные экраны.
+ */
+
+const val DESIGN_W = 412f
+const val DESIGN_H = 917f
+
+/**
+ * Поправка кегля для надписей, которые в макете набраны Ubuntu Mono (буква шириной 0,5 кегля).
+ * Теперь вся игра пишет шрифтом Pangolin (MontikFont): его буква в среднем 0,47 кегля — строки
+ * переносятся так же; кегль чуть уменьшен (0,92), потому что буквы Pangolin выше.
+ */
+private const val MONO_SCALE = 0.92f
+
+@Stable
+class DesignScope(val u: Float, private val density: Density) {
+    /** Число из Figma → размер в dp. */
+    fun d(v: Float): Dp = (v * u).dp
+
+    /** Размер шрифта из Figma → sp (не зависит от масштаба шрифта в настройках телефона). */
+    fun fs(v: Float, mono: Boolean = true): TextUnit =
+        with(density) { (v * u * (if (mono) MONO_SCALE else 1f)).dp.toSp() }
+
+    fun Modifier.at(x: Float, y: Float, w: Float, h: Float): Modifier =
+        this.absoluteOffset(d(x), d(y)).requiredSize(d(w), d(h))
+
+    fun Modifier.at(x: Float, y: Float): Modifier = this.absoluteOffset(d(x), d(y))
+}
+
+/**
+ * Холст 412×917. [background] занимает весь экран (небо, комната), [content] рисуется
+ * в координатах Figma по центру, внутри безопасной области экрана.
+ */
+@Composable
+fun DesignCanvas(
+    modifier: Modifier = Modifier,
+    background: @Composable () -> Unit = {},
+    content: @Composable DesignScope.() -> Unit
+) {
+    val density = LocalDensity.current
+    Box(modifier.fillMaxSize()) {
+        background()
+        BoxWithConstraints(
+            Modifier.fillMaxSize().safeDrawingPadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            val u = minOf(maxWidth.value / DESIGN_W, maxHeight.value / DESIGN_H)
+            val scope = remember(u, density) { DesignScope(u, density) }
+            Box(Modifier.requiredSize((DESIGN_W * u).dp, (DESIGN_H * u).dp)) {
+                scope.content()
+            }
+        }
+    }
+}
+
+/** Есть ли в приложении все перечисленные картинки из макета. */
+@Composable
+fun rememberHasArt(vararg names: String): Boolean {
+    val context = LocalContext.current
+    val key = names.toList()
+    return remember(key) {
+        key.all { context.resources.getIdentifier(it, "drawable", context.packageName) != 0 }
+    }
+}
+
+/** Картинка из макета в рамке x, y, w, h. */
+@Composable
+fun DesignScope.Art(
+    name: String,
+    x: Float,
+    y: Float,
+    w: Float,
+    h: Float,
+    scale: ContentScale = ContentScale.Crop
+) {
+    ArtImage(name, Modifier.at(x, y, w, h), scale) {}
+}
+
+/** Невидимая область нажатия в координатах макета. */
+@Composable
+fun DesignScope.Hit(x: Float, y: Float, w: Float, h: Float, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .at(x, y, w, h)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    )
+}
+
+/** Текст макета: Ubuntu Mono Bold (запасной — системный моноширинный) или обычный. */
+@Composable
+fun DesignScope.DText(
+    text: String,
+    x: Float,
+    y: Float,
+    w: Float,
+    size: Float,
+    bold: Boolean = true,
+    color: Color = MontikColors.Ink,
+    align: TextAlign = TextAlign.Start,
+    softWrap: Boolean = true,
+    mono: Boolean = true,
+    lineHeight: Float = 1.15f
+) {
+    Text(
+        text = text,
+        modifier = Modifier.at(x, y).requiredWidth(d(w)),
+        color = color,
+        fontSize = fs(size, mono),
+        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+        fontFamily = MontikFont,
+        textAlign = align,
+        lineHeight = fs(size * lineHeight, false),
+        softWrap = softWrap
+    )
+}
+
+/**
+ * Мягкое пятно (в макете это размытые эллипсы: свечение за логотипом, тень под героем).
+ * Центр в (cx, cy), размер w×h, можно повернуть.
+ */
+@Composable
+fun DesignScope.SoftGlow(
+    cx: Float,
+    cy: Float,
+    w: Float,
+    h: Float,
+    color: Color,
+    peak: Float = 1f,
+    rotate: Float = 0f
+) {
+    Canvas(Modifier.at(cx - w / 2f, cy - h / 2f, w, h).graphicsLayer { rotationZ = rotate }) {
+        val r = size.width / 2f
+        val squash = size.height / size.width
+        scale(1f, squash, pivot = center) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    0f to color.copy(alpha = peak),
+                    0.55f to color.copy(alpha = peak * 0.9f),
+                    1f to color.copy(alpha = 0f),
+                    center = center,
+                    radius = r
+                ),
+                radius = r,
+                center = center
+            )
+        }
+    }
+}

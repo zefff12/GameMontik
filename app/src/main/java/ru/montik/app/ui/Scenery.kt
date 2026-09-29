@@ -58,13 +58,16 @@ fun roomArt(state: GameState, hour: Int): String {
 /** Комната на экране сна: Монтик спит в своей кровати. */
 @Composable
 fun sleepArt(state: GameState): String =
-    if (state.housing <= 1) "fg_room_night"
+    // В путешествии Монтик ночует в гостинице (кадр Android Compact 37).
+    if (state.trip != null && rememberHasArt("fg_trip_hotel")) "fg_trip_hotel"
+    else if (state.housing <= 1) "fg_room_night"
     else firstExisting("${state.home.room}_sleep", "${state.home.room}_night", "fg_room_night")
 
 /** Утро после сна: Монтик стоит возле кровати. */
 @Composable
 fun wakeArt(state: GameState): String =
-    if (state.housing <= 1) "fg_room_morning"
+    if (state.trip != null && rememberHasArt("fg_trip_hotel")) "fg_trip_hotel"
+    else if (state.housing <= 1) "fg_room_morning"
     else firstExisting("${state.home.room}_day", "fg_room_morning")
 
 /** Кухня по уровню и времени суток. */

@@ -7,8 +7,48 @@ import java.util.Properties
 /** Итог прошедшего дня для «Финансового дневника Монтика». */
 data class DayDiary(val day: Int, val earned: Int, val spent: Int, val saved: Int)
 
-/** Текущее путешествие: сколько остановок уже пройдено. */
-data class TripProgress(val destinationId: String, val stopsDone: Int)
+/**
+ * Этапы путешествия: перелёт в город → прогулка по городу (остановки-задания и кафе) →
+ * бизнес-конференция → перелёт домой. Логика — [Travel].
+ */
+enum class TripPhase { FLY_OUT, CITY, CONFERENCE, FLY_HOME }
+
+/** Текущее путешествие: этап, сколько остановок уже пройдено и был ли Монтик в кафе. */
+data class TripProgress(
+    val destinationId: String,
+    val stopsDone: Int,
+    val phase: TripPhase = TripPhase.CITY,
+    val cafe: Boolean = false
+)
+
+/**
+ * Кредит из банка (см. [Credits]). [total] — сколько вернуть вместе с платой банку,
+ * [paid] — сколько уже внесено, [dueDay] — до какого игрового дня нужно вернуть всё.
+ */
+data class Credit(
+    val id: String,
+    val product: String,
+    val amount: Int,
+    val total: Int,
+    val paid: Int,
+    val dayTaken: Int,
+    val dueDay: Int,
+    /** Сколько монет штрафа уже набежало за просрочку. */
+    val penalty: Int = 0
+) {
+    /** Сколько ещё осталось вернуть (с учётом штрафа). */
+    val left: Int get() = (total + penalty - paid).coerceAtLeast(0)
+}
+
+/** Закрытый кредит — строка кредитной истории. [onTime] = вернул вовремя. */
+data class CreditRecord(
+    val product: String,
+    val amount: Int,
+    val totalPaid: Int,
+    val dayTaken: Int,
+    val dayClosed: Int,
+    val onTime: Boolean
+)
 
 /**
  * Полное состояние игры. Неизменяемое: любое действие возвращает новое состояние.
@@ -60,6 +100,10 @@ data class GameState(
     val doneScenarios: Set<String> = emptySet(),
     val trip: TripProgress? = null,
     val completedTrips: Set<String> = emptySet(),
+    /** Города, где Монтик уже побывал (достижение «Открыт новый город» — только в первый раз). */
+    val visitedCities: Set<String> = emptySet(),
+    /** Сколько бизнес-конференций посетил Монтик: от них растёт уровень профессионала и заработок. */
+    val conferences: Int = 0,
     /** Событие, которое ждёт выбора игрока (например, неожиданная поломка или потеря). */
     val pendingEvent: String? = null,
     val lastEventDay: Int = 0,
@@ -162,7 +206,29 @@ data class GameState(
     val bankShifts: Int = 0,
     /** В какой день Монтик играл на приставке и сколько раз за этот день. */
     val consoleDay: Int = 0,
-    val consolePlays: Int = 0
+    val consolePlays: Int = 0,
+
+    // ── Скины: платные заготовки и краски (см. [Skins]) ──
+    /** Купленные заготовки (id [HeroPreset]) и краски ("color_RRGGBB"). */
+    val ownedSkins: Set<String> = emptySet(),
+    /** Выбранный готовый Монтик-картинка (id из [Skins.pictures]); null — своя раскраска/заготовка. */
+    val heroSkin: String? = null,
+
+    // ── Кредиты (см. [Credits]) ──
+    /** Кредиты, которые ещё не вернули. */
+    val credits: List<Credit> = emptyList(),
+    /** Кредитная история: закрытые кредиты. */
+    val creditHistory: List<CreditRecord> = emptyList(),
+    /** Счётчик для номеров кредитов. */
+    val creditSeq: Int = 0,
+
+    // ── Рынок енота Сергеевича: бартер (см. [Barter]) ──
+    /** День последнего визита на рынок (обмен состоялся или Монтик ушёл). */
+    val barterDay: Int = 0,
+    /** Сколько удачных обменов уже было. */
+    val barterSessions: Int = 0,
+    /** Понимание бартера, 0–100. */
+    val barterUnderstanding: Int = 0
 ) {
     val introDone: Boolean get() = Scenarios.INTRO in doneScenarios
 
@@ -196,7 +262,7 @@ enum class HeroPart(val id: String, val title: String, val default: Int) {
     FUR("fur", "Шёрстка", 0x86D4FF),
     BELLY("belly", "Живот", 0xFFF6EA),
     EARS("ears", "Ушки", 0xFFA9B8),
-    PACK("pack", "Рюкзак", 0x3F4A2E),
+    PACK("pack", "Платочек", 0x3F4A2E),
     CROWN("crown", "Корона", 0xFFC928);
 
     companion object {
@@ -322,8 +388,10 @@ object StateCodec {
         p["worn"] = s.worn.entries.joinToString(";") { "${it.key.name}=${it.value}" }
         p["seenLessons"] = s.seenLessons.joinToString(",")
         p["doneScenarios"] = s.doneScenarios.joinToString(",")
-        s.trip?.let { p["trip"] = "${it.destinationId}:${it.stopsDone}" }
+        s.trip?.let { p["trip"] = "${it.destinationId}:${it.stopsDone}:${it.phase.name}:${it.cafe}" }
         p["completedTrips"] = s.completedTrips.joinToString(",")
+        p["visitedCities"] = s.visitedCities.joinToString(",")
+        p["conferences"] = s.conferences.toString()
         s.pendingEvent?.let { p["pendingEvent"] = it }
         p["lastEventDay"] = s.lastEventDay.toString()
         p["prepaidNight"] = s.prepaidNight.toString()
@@ -377,6 +445,21 @@ object StateCodec {
         p["bankShifts"] = s.bankShifts.toString()
         p["consoleDay"] = s.consoleDay.toString()
         p["consolePlays"] = s.consolePlays.toString()
+        // ── Скины, кредиты, бартер ──
+        p["ownedSkins"] = s.ownedSkins.joinToString(",")
+        s.heroSkin?.let { p["heroSkin"] = it }
+        p["creditCount"] = s.credits.size.toString()
+        s.credits.forEachIndexed { i, c ->
+            p["credit.$i"] = listOf(c.id, c.product, c.amount, c.total, c.paid, c.dayTaken, c.dueDay, c.penalty).joinToString("|")
+        }
+        p["creditHistoryCount"] = s.creditHistory.size.toString()
+        s.creditHistory.forEachIndexed { i, r ->
+            p["creditRecord.$i"] = listOf(r.product, r.amount, r.totalPaid, r.dayTaken, r.dayClosed, r.onTime).joinToString("|")
+        }
+        p["creditSeq"] = s.creditSeq.toString()
+        p["barterDay"] = s.barterDay.toString()
+        p["barterSessions"] = s.barterSessions.toString()
+        p["barterUnderstanding"] = s.barterUnderstanding.toString()
         p["logCount"] = s.log.size.toString()
         s.log.forEachIndexed { i, line -> p["log.$i"] = line }
         val w = StringWriter()
@@ -422,8 +505,14 @@ object StateCodec {
             val trip = p.getProperty("trip")?.split(':')?.let {
                 val dest = it.getOrNull(0)?.let { id -> Destinations.byId(id) }
                 val done = it.getOrNull(1)?.toIntOrNull()
+                val phase = it.getOrNull(2)?.let { n -> TripPhase.values().firstOrNull { ph -> ph.name == n } } ?: TripPhase.CITY
                 if (dest == null || done == null) null
-                else TripProgress(dest.id, done.coerceIn(0, dest.stops.size - 1))
+                else TripProgress(
+                    dest.id,
+                    done.coerceIn(0, if (phase == TripPhase.CITY || phase == TripPhase.FLY_OUT) dest.stops.size - 1 else dest.stops.size),
+                    phase,
+                    it.getOrNull(3) == "true"
+                )
             }
             val day = int("day", 1).coerceAtLeast(1)
             // В старых сохранениях часов нет: считаем, что каждый день начинался в 07:00.
@@ -439,6 +528,21 @@ object StateCodec {
             }
             val logCount = int("logCount", 0).coerceIn(0, Rules.MAX_LOG)
             val log = (0 until logCount).mapNotNull { p.getProperty("log.$it") }
+
+            // ── Скины, кредиты, бартер ──
+            val ownedSkins = set("ownedSkins")
+            val credits = (0 until int("creditCount", 0).coerceIn(0, Credits.MAX_ACTIVE)).mapNotNull { i ->
+                val f = p.getProperty("credit.$i")?.split('|') ?: return@mapNotNull null
+                if (f.size < 8 || Credits.product(f[1]) == null) return@mapNotNull null
+                val n = f.drop(2).map { it.toIntOrNull() ?: return@mapNotNull null }
+                Credit(f[0], f[1], n[0], n[1], n[2].coerceAtLeast(0), n[3], n[4], n[5].coerceAtLeast(0))
+            }
+            val creditHistory = (0 until int("creditHistoryCount", 0).coerceIn(0, Credits.MAX_HISTORY)).mapNotNull { i ->
+                val f = p.getProperty("creditRecord.$i")?.split('|') ?: return@mapNotNull null
+                if (f.size < 6) return@mapNotNull null
+                val n = f.subList(1, 5).map { it.toIntOrNull() ?: return@mapNotNull null }
+                CreditRecord(f[0], n[0], n[1], n[2], n[3], f[5] == "true")
+            }
 
             d.copy(
                 seed = p.getProperty("seed")?.toLongOrNull() ?: d.seed,
@@ -478,6 +582,10 @@ object StateCodec {
                 doneScenarios = set("doneScenarios"),
                 trip = trip,
                 completedTrips = set("completedTrips"),
+                // В старых сохранениях открытых городов нет: это те, куда Монтик уже съездил.
+                visitedCities = (if (p.getProperty("visitedCities") == null) set("completedTrips") else set("visitedCities"))
+                    .filter { id -> Destinations.byId(id) != null }.toSet(),
+                conferences = int("conferences", 0).coerceAtLeast(0),
                 pendingEvent = p.getProperty("pendingEvent")?.takeIf { Scenarios.byId(it) != null },
                 lastEventDay = int("lastEventDay", 0),
                 prepaidNight = p.getProperty("prepaidNight") == "true",
@@ -541,7 +649,16 @@ object StateCodec {
                 }.toMap(),
                 bankShifts = int("bankShifts", 0).coerceAtLeast(0),
                 consoleDay = int("consoleDay", 0).coerceAtLeast(0),
-                consolePlays = int("consolePlays", 0).coerceAtLeast(0)
+                consolePlays = int("consolePlays", 0).coerceAtLeast(0),
+                // ── Скины, кредиты, бартер ──
+                ownedSkins = ownedSkins,
+                heroSkin = p.getProperty("heroSkin")?.takeIf { id -> Skins.picture(id)?.let { Skins.ownsPicture(ownedSkins, it) } == true },
+                credits = credits,
+                creditHistory = creditHistory,
+                creditSeq = int("creditSeq", 0).coerceAtLeast(0),
+                barterDay = int("barterDay", 0).coerceAtLeast(0),
+                barterSessions = int("barterSessions", 0).coerceAtLeast(0),
+                barterUnderstanding = pct("barterUnderstanding", 0)
             )
         } catch (e: Exception) {
             null

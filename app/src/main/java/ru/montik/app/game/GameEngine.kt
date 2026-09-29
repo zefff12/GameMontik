@@ -109,7 +109,9 @@ data class Payslip(
     val notes: List<String>,
     /** Звёзды за смену в магазине (1–3, null — обычная работа) и побит ли личный рекорд. */
     val stars: Int? = null,
-    val record: Boolean = false
+    val record: Boolean = false,
+    /** Прибавка за опыт бизнес-конференций ([Travel]), в процентах. */
+    val careerPercent: Int = 0
 )
 
 data class ShiftResult(val outcome: Outcome, val payslip: Payslip?)
@@ -387,6 +389,10 @@ object GameEngine {
         }
     }
 
+    /** Строка в расчётный листок: откуда прибавка за опыт конференций. */
+    fun careerNote(state: GameState): String =
+        "Опыт бизнес-конференций (уровень профессионала ${Travel.careerLevel(state)}): +${Travel.careerPercent(state)}% к заработку."
+
     /**
      * Почему Монтик прямо сейчас не может выйти на смену (null — может).
      * Силы, еда и вода обязательны: без них не работают и не живут.
@@ -504,7 +510,8 @@ object GameEngine {
         val eff = efficiency(state)
         val appearance = state.appearancePercent
         val bonus = if (taskCorrect == true) Rules.TASK_BONUS_PERCENT else 0
-        val total = eff + appearance + bonus
+        val career = Travel.careerPercent(state)
+        val total = eff + appearance + bonus + career
         val gross = (job.base * total + 50) / 100
         val tax = (gross * Rules.TAX_PERCENT + 50) / 100
         val net = gross - tax
@@ -514,6 +521,7 @@ object GameEngine {
         if (appearance > 0) notes += "Опрятный вид добавил +$appearance% к заработку."
         if (bonus > 0) notes += "Задание решено верно: премия +$bonus%."
         if (taskCorrect == false) notes += "Задание решено неверно — премии нет."
+        if (career > 0) notes += careerNote(state)
 
         c.earn(net)
         c.s = c.s.copy(shifts = c.s.shifts + 1, totalTax = c.s.totalTax + tax)
@@ -534,7 +542,7 @@ object GameEngine {
         if (lowEnergy || eff < 100) c.teach(Lesson.ENERGY)
 
         c.xp(Progress.XP_SHIFT)
-        val slip = Payslip(job.title, job.base, eff, appearance, bonus, gross, tax, net, notes)
+        val slip = Payslip(job.title, job.base, eff, appearance, bonus, gross, tax, net, notes, careerPercent = career)
         return ShiftResult(c.done(), slip)
     }
 
@@ -555,7 +563,8 @@ object GameEngine {
         val appearance = state.appearancePercent
         val perf = performance.coerceIn(0, 100)
         val bonus = perf / 2
-        val total = eff + appearance + bonus
+        val career = Travel.careerPercent(state)
+        val total = eff + appearance + bonus + career
         val gross = (rank.base * total + 50) / 100
         val tax = (gross * Rules.TAX_PERCENT + 50) / 100
         val net = gross - tax
@@ -566,6 +575,7 @@ object GameEngine {
         if (bonus > 0) notes += "Премия за внимательность и скорость: +$bonus%."
         if (eff < 100) notes += "Из-за усталости, голода или жажды Монтик работал не в полную силу ($eff%)."
         if (appearance > 0) notes += "Опрятный вид добавил +$appearance% к заработку."
+        if (career > 0) notes += careerNote(state)
 
         c.earn(net)
         c.s = c.s.copy(
@@ -602,7 +612,7 @@ object GameEngine {
         c.xp(Progress.XP_SHIFT + stars * Progress.XP_SHOP_STAR)
         val slip = Payslip(
             "${rank.title}: ${game.title.lowercase()}", rank.base, eff, appearance, bonus, gross, tax, net, notes,
-            stars = stars, record = record
+            stars = stars, record = record, careerPercent = career
         )
         return ShiftResult(c.done(), slip)
     }
@@ -803,6 +813,9 @@ object GameEngine {
         // Квартира: день оплаты или напоминание.
         Life.settleRent(c)
 
+        // Кредиты: штраф за просрочку и напоминание о сроке.
+        Credits.settleDay(c)
+
         // Конец игрового периода: план и факт, звёзды привычек.
         Life.closePeriodIfNeeded(c, oldDay)
 
@@ -968,7 +981,9 @@ object GameEngine {
         if (!canChoose(state, scenario, choice)) {
             return ChoiceResult(fail(state, "Не хватает монет для этого варианта."), choice, null)
         }
-        if (scenarioId in state.doneScenarios && scenarioId !in Scenarios.REPEATABLE) {
+        // Остановку путешествия можно пройти снова, если Монтик опять полетел в этот город.
+        val tripStop = currentStop(state)?.id == scenarioId
+        if (scenarioId in state.doneScenarios && scenarioId !in Scenarios.REPEATABLE && !tripStop) {
             return ChoiceResult(fail(state, "Эта ситуация уже пройдена."), choice, null)
         }
 
@@ -982,7 +997,18 @@ object GameEngine {
                 c.say("🛟 В кошельке не хватило монет — $fromCushion взято из подушки безопасности. Для этого она и нужна!")
             }
         }
-        if (choice.loss > 0) c.pay(choice.loss, allowCushion = false, kind = SpendKind.NEED, label = "потеря: ${scenario.title}")
+        if (choice.loss > 0) {
+            // Потерять можно только то, что есть в кошельке: честно говорим, сколько пропало на самом деле.
+            val lost = minOf(choice.loss, c.s.coins)
+            c.pay(choice.loss, allowCushion = false, kind = SpendKind.NEED, label = "потеря: ${scenario.title}")
+            c.say(
+                when {
+                    lost <= 0 -> "👛 В кошельке было пусто — терять было нечего. Но урок тот же!"
+                    lost < choice.loss -> "👛 Пропало $lost монет — всё, что было в кошельке."
+                    else -> "👛 Пропало $lost монет."
+                }
+            )
+        }
         c.meters(choice.energy, choice.food, choice.water)
         c.skill(choice.skill, choice.skillPoints)
         if (choice.prepaidNight) c.s = c.s.copy(prepaidNight = true)
@@ -999,17 +1025,11 @@ object GameEngine {
                 c.meters(-Rules.STOP_ENERGY, -Rules.STOP_FOOD, -Rules.STOP_WATER)
                 val doneStops = trip.stopsDone + 1
                 if (doneStops >= dest.stops.size) {
-                    c.s = c.s.copy(trip = null, completedTrips = c.s.completedTrips + dest.id)
-                    c.skill(Skill.TRAVELER, 3)
-                    c.say("${dest.emoji} Путешествие в ${dest.name} завершено! Монтик вернулся домой с новыми знаниями.")
-                    c.log("вернулся из путешествия: ${dest.name}")
-                    if (dest.restful) {
-                        c.s = c.s.copy(energy = 100, food = maxOf(c.s.food, 70), water = maxOf(c.s.water, 70))
-                        c.say("🌊 Отдых у моря пошёл на пользу: Монтик вернулся полным сил и готов к новым делам!")
-                        c.teach(Lesson.VACATION)
-                    }
+                    // Все остановки пройдены — впереди бизнес-конференция, потом перелёт домой ([Travel]).
+                    c.s = c.s.copy(trip = trip.copy(stopsDone = doneStops, phase = TripPhase.CONFERENCE))
+                    c.say("🎤 Прогулка по городу ${dest.name} окончена. Впереди — бизнес-конференция «${dest.conference}»!")
                 } else {
-                    c.s = c.s.copy(trip = TripProgress(dest.id, doneStops))
+                    c.s = c.s.copy(trip = trip.copy(stopsDone = doneStops))
                 }
             }
         }
@@ -1039,7 +1059,7 @@ object GameEngine {
     // ───────────────────────── Путешествия ─────────────────────────
 
     fun destinationStatus(state: GameState, dest: Destination): String? {
-        if (dest.id in state.completedTrips) return "Уже побывали"
+        // В город, где уже побывали, можно полететь снова: новая конференция — новый опыт.
         if (state.trip != null) return "Сначала закончи текущее путешествие"
         val req = dest.requires
         if (req != null && req !in state.completedTrips) {
@@ -1057,8 +1077,8 @@ object GameEngine {
         }
         val c = Ctx(state)
         c.spend(dest.ticket, SpendKind.WANT, "билет: ${dest.name}")
-        c.s = c.s.copy(trip = TripProgress(dest.id, 0))
-        c.say("🚂 Билет в ${dest.name} куплен за ${dest.ticket} монет. Поехали!")
+        c.s = c.s.copy(trip = TripProgress(dest.id, 0, TripPhase.FLY_OUT))
+        c.say("✈️ Билет на самолёт в ${dest.name} куплен за ${dest.ticket} монет. Полетели!")
         c.log("поехал: ${dest.name} (билет −${dest.ticket})")
         c.teach(Lesson.BUDGET)
         return c.done()
@@ -1067,6 +1087,7 @@ object GameEngine {
     /** Текущее задание путешествия (null, если Монтик дома). */
     fun currentStop(state: GameState): Scenario? {
         val trip = state.trip ?: return null
+        if (trip.phase != TripPhase.CITY) return null
         val dest = Destinations.byId(trip.destinationId) ?: return null
         return dest.stops.getOrNull(trip.stopsDone)?.let { Scenarios.byId(it) }
     }
@@ -1115,13 +1136,21 @@ object GameEngine {
     /** Цель игры на сейчас — для главного экрана и родителя. */
     fun currentGoal(state: GameState): String {
         if (state.debt > 0) return "💳 Вернуть банку ${state.debt} монет"
+        state.credits.firstOrNull { Credits.isOverdue(state, it) }?.let {
+            return "💳 Срочно вернуть просроченный кредит: ${it.left} монет"
+        }
         if (state.rentDebt > 0) return "🏠 Погасить долг за квартиру: ${state.rentDebt} монет"
         Goals.current(state)?.let { g ->
             return "${g.emoji} Цель: ${g.title} — в копилке ${state.piggy} из ${g.cost}"
         }
         state.trip?.let { t ->
             val d = Destinations.byId(t.destinationId)
-            if (d != null) return "${d.emoji} Путешествие: ${d.name} (остановка ${t.stopsDone + 1} из ${d.stops.size})"
+            if (d != null) return "${d.emoji} Путешествие: ${d.name} — " + when (t.phase) {
+                TripPhase.FLY_OUT -> "летим туда"
+                TripPhase.CITY -> "остановка ${t.stopsDone + 1} из ${d.stops.size}"
+                TripPhase.CONFERENCE -> "бизнес-конференция"
+                TripPhase.FLY_HOME -> "летим домой"
+            }
         }
         val next = Destinations.all.firstOrNull { it.id !in state.completedTrips }
             ?: return "🏆 Монтик объехал всю страну и отдохнул у моря. Ты справился! " + BusinessEngine.goal(state)

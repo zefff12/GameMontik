@@ -2,6 +2,8 @@ package ru.montik.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,13 +26,16 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +50,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -53,16 +59,17 @@ import ru.montik.app.GameViewModel
 import ru.montik.app.game.Hero
 import ru.montik.app.game.HeroPart
 import ru.montik.app.game.HeroPreset
+import ru.montik.app.game.Skins
 
 /**
  * Экран создания героя по макету «отрисовка персонажа»: линия с именем сверху,
  * контур Монтика по центру, палитра цветов справа и подпись «нарисуй меня!» внизу.
  * Раскрашивание идёт прямо в приложении: сначала Монтик — белый человечек, выбери цвет и коснись части героя.
  * Кроме белого, можно взять готового Монтика: синего, зелёного и других — и докрасить его по-своему.
- * Кнопка фотографии оставлена вторым способом — можно нарисовать героя на бумаге.
+ * Часть готовых Монтиков и красок открывается за монеты (см. game/Skins.kt).
  */
 @Composable
-fun CreateScreen(vm: GameViewModel, onCamera: () -> Unit, onGallery: () -> Unit) {
+fun CreateScreen(vm: GameViewModel) {
     val ui = vm.create
     // Рисование занимает весь экран без прокрутки: движение пальцем целиком идёт на рисунок.
     if (ui is CreateUi.Drawing) {
@@ -71,7 +78,7 @@ fun CreateScreen(vm: GameViewModel, onCamera: () -> Unit, onGallery: () -> Unit)
     }
     // Новый экран раскраски из макета (Frame 33) — во весь экран, точно по картинке.
     if (ui is CreateUi.Idle && rememberHasArt("fg_paint_bg")) {
-        FigmaColouringBoard(vm, onCamera, onGallery)
+        FigmaColouringBoard(vm)
         return
     }
     Box(Modifier.fillMaxSize().background(MontikColors.Surface), contentAlignment = Alignment.TopCenter) {
@@ -85,7 +92,7 @@ fun CreateScreen(vm: GameViewModel, onCamera: () -> Unit, onGallery: () -> Unit)
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             when (ui) {
-                is CreateUi.Idle, is CreateUi.Drawing -> ColouringBoard(vm, onCamera, onGallery)
+                is CreateUi.Idle, is CreateUi.Drawing -> ColouringBoard(vm)
                 is CreateUi.Working -> {
                     Spacer(Modifier.height(80.dp))
                     CircularProgressIndicator(color = MontikColors.LimeDeep)
@@ -123,10 +130,17 @@ private fun NameField(value: String, onChange: (String) -> Unit) {
 
 /** Палитра из семи цветов справа от героя, как в макете. */
 @Composable
-private fun Palette(selected: Int, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
+private fun Palette(
+    selected: Int,
+    onPick: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    owned: (Int) -> Boolean = { true },
+    onLocked: (Int) -> Unit = {}
+) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(11.dp)) {
         for (rgb in Hero.PALETTE) {
             val color = argbColor(rgb)
+            val open = owned(rgb)
             Box(
                 Modifier
                     .size(55.dp)
@@ -137,16 +151,56 @@ private fun Palette(selected: Int, onPick: (Int) -> Unit, modifier: Modifier = M
                         color = if (rgb == selected) MontikColors.LimeDeep else MontikColors.Ink,
                         shape = CircleShape
                     )
-                    .clickable { onPick(rgb) }
-            )
+                    .clickable { if (open) onPick(rgb) else onLocked(rgb) },
+                contentAlignment = Alignment.Center
+            ) {
+                if (!open) {
+                    Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+                        Text("🔒", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
         }
     }
 }
 
+/** Что ребёнок хочет открыть за монеты на экране создания. */
+private class SkinOffer(val title: String, val price: Int, val art: String? = null, val buy: () -> Unit)
+
+/** «Открыть за N монет?» — покупка скина или краски только после подтверждения. */
 @Composable
-private fun ColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: () -> Unit) {
+private fun BuySkinDialog(vm: GameViewModel, offer: SkinOffer, onDone: () -> Unit) {
+    val coins = vm.state.coins
+    val canPay = coins >= offer.price
+    AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text("🔒 ${offer.title}") },
+        text = {
+            Text(
+                if (canPay) {
+                    "Открыть за ${offer.price} монет? В кошельке $coins. Это желаемая покупка: без неё можно обойтись, " +
+                        "но она радует. Открывается один раз и навсегда."
+                } else {
+                    "Стоит ${offer.price} монет, а в кошельке $coins. Поработай на смене и возвращайся — " +
+                        "изменить Монтика можно в телефоне, в «Профиле»."
+                }
+            )
+        },
+        confirmButton = {
+            if (canPay) TextButton(onClick = { offer.buy(); onDone() }) { Text("Купить за ${offer.price}") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDone) { Text(if (canPay) "Не сейчас" else "Понятно") }
+        }
+    )
+}
+
+@Composable
+private fun ColouringBoard(vm: GameViewModel) {
     var colour by rememberSaveable { mutableStateOf(Hero.PALETTE.first()) }
     var lastPart by remember { mutableStateOf<HeroPart?>(null) }
+    var offer by remember { mutableStateOf<SkinOffer?>(null) }
+    offer?.let { o -> BuySkinDialog(vm, o) { offer = null } }
 
     NameField(vm.heroName) { vm.changeHeroName(it) }
     Spacer(Modifier.height(16.dp))
@@ -176,11 +230,23 @@ private fun ColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: (
                 )
             }
         }
-        Palette(colour, { colour = it }, Modifier.padding(start = 8.dp))
+        Palette(
+            colour, { colour = it }, Modifier.padding(start = 8.dp),
+            owned = { vm.colourOwned(it) },
+            onLocked = { rgb -> offer = SkinOffer("Краска", Skins.colorPrice(rgb)) { if (vm.buyColour(rgb)) colour = rgb } }
+        )
     }
 
     Spacer(Modifier.height(8.dp))
-    PresetPicker(selected = vm.heroPresetDraft, onPick = { lastPart = null; vm.choosePreset(it) })
+    PresetPicker(
+        selected = vm.heroPresetDraft,
+        onPick = { preset ->
+            lastPart = null
+            if (vm.presetOwned(preset)) vm.choosePreset(preset)
+            else offer = SkinOffer("Монтик «${preset.title}»", Skins.price(preset)) { vm.buyPreset(preset) }
+        },
+        owned = { vm.presetOwned(it) }
+    )
     Spacer(Modifier.height(12.dp))
     Text(
         when {
@@ -201,10 +267,6 @@ private fun ColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: (
     SecondaryPill("🎲  Случайные цвета") { vm.randomColours() }
     Spacer(Modifier.height(10.dp))
     SecondaryPill("✏️  Нарисовать самому") { vm.startDrawing() }
-    Spacer(Modifier.height(10.dp))
-    SecondaryPill("📷  Сфотографировать рисунок", onClick = onCamera)
-    Spacer(Modifier.height(10.dp))
-    SecondaryPill("🖼  Выбрать фото из галереи", onClick = onGallery)
     if (vm.redrawing) {
         Spacer(Modifier.height(10.dp))
         SecondaryPill("Отмена") { vm.cancelRedraw() }
@@ -217,7 +279,7 @@ private fun ColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: (
  * Повторное касание выбранной заготовки стирает раскраску.
  */
 @Composable
-private fun PresetPicker(selected: HeroPreset, onPick: (HeroPreset) -> Unit) {
+private fun PresetPicker(selected: HeroPreset, onPick: (HeroPreset) -> Unit, owned: (HeroPreset) -> Boolean = { true }) {
     Text("Кто твой Монтик?", style = MaterialTheme.typography.titleMedium, color = MontikColors.Ink)
     Spacer(Modifier.height(6.dp))
     Row(
@@ -247,7 +309,7 @@ private fun PresetPicker(selected: HeroPreset, onPick: (HeroPreset) -> Unit) {
                     }
                 }
                 Text(
-                    preset.title,
+                    if (owned(preset)) preset.title else "🔒 ${Skins.price(preset)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MontikColors.Ink,
                     textAlign = TextAlign.Center,
@@ -334,11 +396,9 @@ private fun PhotoPreview(vm: GameViewModel, ui: CreateUi.Preview) {
     Spacer(Modifier.height(16.dp))
     PillButton("Это Монтик! Играть", { vm.confirmSprite() })
     Spacer(Modifier.height(10.dp))
-    if (ui.drawn) {
-        SecondaryPill("✏️  Дорисовать") { vm.startDrawing() }
-    } else {
-        SecondaryPill("↺  Сфотографировать заново") { vm.retake() }
-    }
+    SecondaryPill("✏️  Дорисовать") { vm.startDrawing() }
+    Spacer(Modifier.height(10.dp))
+    SecondaryPill("🎨  Вернуться к раскраске") { vm.retake() }
     Spacer(Modifier.height(24.dp))
 }
 
@@ -351,14 +411,7 @@ private fun PhotoError(vm: GameViewModel, ui: CreateUi.Error) {
         Text(ui.message, style = MaterialTheme.typography.bodyLarge)
     }
     Spacer(Modifier.height(12.dp))
-    PhotoTips()
     Spacer(Modifier.height(16.dp))
-    PillButton("Попробовать ещё раз", { vm.retake() })
-    if (vm.canKeepWhole) {
-        Spacer(Modifier.height(10.dp))
-        SecondaryPill("Оставить фото как есть") { vm.keepWholePhoto() }
-    }
-    Spacer(Modifier.height(10.dp))
     SecondaryPill("🎨  Вернуться к раскраске") { vm.retake() }
     Spacer(Modifier.height(24.dp))
 }
@@ -461,8 +514,13 @@ private val PALETTE_Y = listOf(301f, 378f, 452f, 527f, 602f, 677f, 752f)
  * для раскраски, палитра справа, выбор заготовки и кнопки — живые, на своих местах.
  */
 @Composable
-private fun FigmaColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGallery: () -> Unit) {
+private fun FigmaColouringBoard(vm: GameViewModel) {
     var colour by rememberSaveable { mutableStateOf(Hero.PALETTE.first()) }
+    var offer by remember { mutableStateOf<SkinOffer?>(null) }
+    var gallery by remember { mutableStateOf(false) }
+    val masks = rememberPartMasks()
+    val lineArt = rememberHasLineArt()
+    val skin = Skins.picture(vm.skinDraft)
     fun p(v: Float) = v * PK
 
     DesignCanvas(background = {
@@ -498,22 +556,40 @@ private fun FigmaColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGalle
             )
         }
 
-        // Монтик для раскраски — там, где в макете контур зайки.
-        val side = 262f
-        Box(
-            Modifier
-                .at(p(385f) - side / 2f, p(545f) - side / 2f, side, side)
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        val sz = minOf(size.width, size.height).toFloat()
-                        val ox = (size.width - sz) / 2f
-                        val oy = (size.height - sz) / 2f
-                        val part = heroPartAt((offset.x - ox) / sz, (offset.y - oy) / sz)
-                        if (part != null) vm.paintHero(part, colour)
+        // Монтик для раскраски — штриховой зайка из макета (Frame 33, рисунок 245×236 в точке 74,155).
+        // Если выбран готовый Монтик-картинка — показываем его.
+        if (skin != null) {
+            ArtImage(skin.art, Modifier.at(84f, 150f, 226f, 240f), ContentScale.Fit) {}
+        } else if (lineArt) {
+            Box(
+                Modifier
+                    .at(97f, 158f, 200f, 230f)
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            val part = masks.partAt(offset.x, offset.y, size.width.toFloat(), size.height.toFloat())
+                            if (part != null) vm.paintHero(part, colour)
+                        }
                     }
-                }
-        ) {
-            MontikBunny(modifier = Modifier.fillMaxSize(), palette = heroPalette(vm.heroPresetDraft, vm.heroDraft))
+            ) {
+                LineArtMontik(Modifier.fillMaxSize(), palette = heroPalette(vm.heroPresetDraft, vm.heroDraft))
+            }
+        } else {
+            val side = 262f
+            Box(
+                Modifier
+                    .at(p(385f) - side / 2f, p(545f) - side / 2f, side, side)
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            val sz = minOf(size.width, size.height).toFloat()
+                            val ox = (size.width - sz) / 2f
+                            val oy = (size.height - sz) / 2f
+                            val part = heroPartAt((offset.x - ox) / sz, (offset.y - oy) / sz)
+                            if (part != null) vm.paintHero(part, colour)
+                        }
+                    }
+            ) {
+                MontikBunny(modifier = Modifier.fillMaxSize(), palette = heroPalette(vm.heroPresetDraft, vm.heroDraft))
+            }
         }
 
         // Палитра справа: семь кружков из макета, выбранный — в зелёном кольце.
@@ -524,14 +600,26 @@ private fun FigmaColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGalle
             if (rgb == colour) {
                 Box(Modifier.at(cx - r - 4f, cy - r - 4f, 2 * r + 8f, 2 * r + 8f).clip(CircleShape).border(d(3.5f), PaintGreen, CircleShape))
             }
+            val open = vm.colourOwned(rgb)
             Box(
                 Modifier
                     .at(cx - r, cy - r, 2 * r, 2 * r)
                     .clip(CircleShape)
                     .background(argbColor(rgb))
                     .border(d(2f), PaintTeal, CircleShape)
-                    .clickable { colour = rgb }
-            )
+                    .clickable {
+                        if (open) colour = rgb
+                        else offer = SkinOffer("Краска", Skins.colorPrice(rgb)) { if (vm.buyColour(rgb)) colour = rgb }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                // Закрытая краска: замок, открывается за монеты.
+                if (!open) {
+                    Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+                        Text("🔒", fontSize = fs(12f, false))
+                    }
+                }
+            }
         }
 
         // «Кто твой Монтик?» — шесть заготовок, выбранная в зелёном кольце с галочкой.
@@ -546,12 +634,27 @@ private fun FigmaColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGalle
                     MontikBunny(Modifier.fillMaxSize(), palette = heroPalette(preset))
                 }
             }
+            val open = vm.presetOwned(preset)
             Box(
                 Modifier.at(cx - r - 3f, cy - r - 3f, 2 * r + 6f, 2 * r + 6f)
                     .clip(CircleShape)
                     .border(if (selected) d(4f) else d(1.2f), if (selected) PaintGreen else Color(0xFFCFE3CF), CircleShape)
-                    .clickable { vm.choosePreset(preset) }
+                    .clickable {
+                        if (open) vm.choosePreset(preset)
+                        else offer = SkinOffer("Монтик «${preset.title}»", Skins.price(preset)) { vm.buyPreset(preset) }
+                    }
             )
+            // Платный Монтик: полупрозрачный, с замком и ценой.
+            if (!open) {
+                Box(
+                    Modifier.at(cx - r, cy - r, 2 * r, 2 * r).clip(CircleShape).background(Color.White.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) { Text("🔒", fontSize = fs(16f, false)) }
+                Box(
+                    Modifier.at(cx - 24f, cy + r - 12f, 48f, 18f).clip(RoundedCornerShape(d(9f))).background(PaintGreen),
+                    contentAlignment = Alignment.Center
+                ) { Text("🪙${Skins.price(preset)}", color = Color.White, fontSize = fs(10f, false)) }
+            }
             if (selected) {
                 Box(
                     Modifier.at(cx + r * 0.45f, cy + r * 0.45f, 22f, 22f).clip(CircleShape).background(PaintGreen)
@@ -562,13 +665,82 @@ private fun FigmaColouringBoard(vm: GameViewModel, onCamera: () -> Unit, onGalle
         }
 
         // Кнопки макета: «Готово!» и список действий.
-        Hit(p(185f), p(1290f), p(485f), p(120f)) { vm.confirmColouring() }
-        Hit(p(140f), p(1445f), p(560f), p(76f)) { vm.randomColours() }
-        Hit(p(140f), p(1526f), p(560f), p(76f)) { vm.startDrawing() }
-        Hit(p(140f), p(1607f), p(560f), p(78f), onCamera)
-        Hit(p(140f), p(1690f), p(560f), p(76f), onGallery)
-        Hit(p(140f), p(1770f), p(560f), p(76f)) {
+        // «Нарисуй меня!» → кнопка галереи: ещё 20 готовых Монтиков из макета.
+        Box(
+            Modifier.at(p(70f), p(1108f), p(700f), p(74f)).clip(RoundedCornerShape(d(22f)))
+                .background(Color(0xFFEAF7DF)).border(d(2f), PaintGreen, RoundedCornerShape(d(22f)))
+                .clickable { gallery = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                if (skin != null) "✨ ${skin.title} · ещё Монтики ›" else "✨ Ещё ${Skins.pictures.size} Монтиков ›",
+                color = PaintTeal, fontSize = fs(15f, false), fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Кнопки макета (фото-кнопок больше нет: «Отмена» поднялась на их место).
+        Hit(p(190f), p(1222f), p(480f), p(136f)) { vm.confirmColouring() }
+        Hit(p(139f), p(1375f), p(563f), p(78f)) { vm.randomColours() }
+        Hit(p(139f), p(1456f), p(563f), p(78f)) { vm.startDrawing() }
+        Hit(p(139f), p(1537f), p(563f), p(78f)) {
             if (vm.redrawing) vm.cancelRedraw() else vm.choosePreset(vm.heroPresetDraft)
+        }
+    }
+    if (gallery) {
+        SkinGallery(
+            vm = vm,
+            selected = vm.skinDraft,
+            onPick = { pic ->
+                if (Skins.ownsPicture(vm.state, pic)) vm.chooseSkin(pic)
+                else offer = SkinOffer("Монтик «${pic.title}»", pic.price, pic.art) { vm.buySkin(pic) }
+            },
+            onClose = { gallery = false }
+        )
+    }
+    // Окно «Открыть за N монет?» — поверх экрана и галереи (раньше его здесь не было, и покупка не открывалась).
+    offer?.let { o -> SkinBuyOverlay(vm, o) { offer = null } }
+}
+
+/** Покупка скина или краски в стиле макета: картинка, цена, кошелёк и две кнопки. */
+@Composable
+private fun SkinBuyOverlay(vm: GameViewModel, offer: SkinOffer, onDone: () -> Unit) {
+    val coins = vm.state.coins
+    val canPay = coins >= offer.price
+    BackHandler(enabled = true) { onDone() }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onDone() }
+    ) {
+        DesignCanvas {
+            Box(
+                Modifier.at(31f, 220f, 350f, 470f).clip(RoundedCornerShape(d(32f))).background(Color(0xFFF4FBEC))
+                    .border(d(4f), PaintGreen, RoundedCornerShape(d(32f)))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
+            )
+            Box(
+                Modifier.at(131f, 244f, 150f, 150f).clip(RoundedCornerShape(d(30f))).background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                if (offer.art != null) {
+                    ArtImage(offer.art, Modifier.fillMaxSize().padding(d(6f)), ContentScale.Fit) { Text("🎨", fontSize = fs(60f, false)) }
+                } else {
+                    Text("🎨", fontSize = fs(60f, false))
+                }
+            }
+            DText(offer.title, 51f, 408f, 310f, 22f, color = PaintTeal, align = TextAlign.Center, mono = false)
+            DText(
+                if (canPay) "Открыть за ${offer.price} 🪙? В кошельке $coins. Это желаемая покупка: без неё можно обойтись, но она радует. Открывается навсегда."
+                else "Стоит ${offer.price} 🪙, а в кошельке $coins. Поработай на смене и возвращайся!",
+                51f, 446f, 310f, 15f, bold = false, color = PaintTeal, align = TextAlign.Center, mono = false
+            )
+            if (canPay) {
+                LivePill("Купить за ${offer.price}", 51f, 600f, 190f) { offer.buy(); onDone() }
+                LivePill("Не сейчас", 251f, 600f, 110f, fill = Color(0xFFB9C9B0)) { onDone() }
+            } else {
+                LivePill("Понятно", 121f, 600f, 170f) { onDone() }
+            }
         }
     }
 }

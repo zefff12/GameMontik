@@ -1,9 +1,6 @@
 package ru.montik.app.ui
 
-import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -34,6 +31,7 @@ import ru.montik.app.GameViewModel
 import ru.montik.app.Screen
 import ru.montik.app.game.Ads
 import ru.montik.app.game.Advice
+import ru.montik.app.game.Barter
 import ru.montik.app.game.BusinessEngine
 import ru.montik.app.game.Scenario
 
@@ -55,42 +53,11 @@ fun MontikApp(vm: GameViewModel = viewModel()) {
 /** Экран создания героя и запуск камеры / галереи. */
 @Composable
 private fun CreationHost(vm: GameViewModel) {
-    // Адрес снимка переживает пересоздание, пока открыта «Камера».
-    var cameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
-
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
-        val uri = cameraUri
-        // Если ребёнок закрыл камеру без снимка, просто остаёмся на экране выбора.
-        if (saved && uri != null) vm.processPhoto(uri)
-    }
-    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) vm.processPhoto(uri)
-    }
-
     BackHandler(enabled = vm.redrawing) { vm.cancelRedraw() }
     // «Назад» во время рисования возвращает к раскраске (этот обработчик важнее предыдущего).
     BackHandler(enabled = vm.create is CreateUi.Drawing) { vm.cancelDrawing() }
 
-    CreateScreen(
-        vm = vm,
-        onCamera = {
-            try {
-                val uri = vm.newCameraUri()
-                cameraUri = uri
-                camera.launch(uri)
-            } catch (e: Exception) {
-                // Нет приложения «Камера» или не удалось создать файл: предлагаем галерею.
-                vm.photoFailed()
-            }
-        },
-        onGallery = {
-            try {
-                gallery.launch("image/*")
-            } catch (e: Exception) {
-                vm.photoFailed()
-            }
-        }
-    )
+    CreateScreen(vm = vm)
 }
 
 /** Игра: текущий экран + диалоги поверх него. */
@@ -106,7 +73,8 @@ private fun GameHost(vm: GameViewModel) {
             // Только что проснулся: стоит возле кровати, показываем итоги сна.
             wake != null -> WakeScreen(vm, wake)
             else -> when (vm.screen) {
-                Screen.Home -> HomeScreen(vm)
+                // В путешествии Монтик не дома: вместо квартиры — экран поездки.
+                Screen.Home -> if (vm.state.trip != null) TripHomeScreen(vm) else HomeScreen(vm)
                 Screen.Kitchen -> KitchenScreen(vm)
                 Screen.Budget -> BudgetScreen(vm)
                 Screen.Goals -> GoalsScreen(vm)
@@ -126,8 +94,10 @@ private fun GameHost(vm: GameViewModel) {
                 Screen.Parent -> ParentScreen(vm)
                 Screen.Grocery -> GroceryScreen(vm)
                 Screen.Fridge -> FridgeScreen(vm)
+                Screen.FridgeDoor -> FridgeDoorScreen(vm)
                 Screen.BankJob -> BankJobScreen(vm)
                 Screen.Console -> ConsoleScreen(vm)
+                Screen.Barter -> BarterScreen(vm)
             }
         }
 
@@ -179,6 +149,8 @@ private fun Overlays(vm: GameViewModel) {
         onMain && vm.tipDue -> TipOverlay(vm, Advice.forToday(s))
         ad != null && vm.adVisible -> AdOverlay(vm, ad)
         BusinessEngine.offerPending(s) -> BusinessOfferDialog(vm)
+        // Раз в 10 игровых дней: сообщение от енота Сергеевича — сходить на рынок.
+        onMain && vm.barterInvite -> BarterInviteDialog(vm)
     }
 }
 

@@ -74,6 +74,7 @@ import ru.montik.app.game.Medal
 import ru.montik.app.game.Rating
 import ru.montik.app.game.Rules
 import ru.montik.app.game.Scenario
+import ru.montik.app.game.Skins
 import ru.montik.app.game.Slot
 
 // ───────────────────────── Мелкие строительные блоки ─────────────────────────
@@ -202,11 +203,26 @@ fun ActionTile(
  * Имя картинки Монтика для заготовки. Синий — оригинал из макета, остальные — те же рисунки,
  * перекрашенные (fg_hero_<id>.webp сидит, fg_hero_<id>_stand.webp стоит спиной).
  */
-fun heroArtName(preset: HeroPreset, standing: Boolean): String = when (preset) {
-    HeroPreset.BLUE -> if (standing) "fg_story7_char" else "fg_splash_hero"
-    // У чёрного и радужного в макете есть только сидячая картинка.
-    HeroPreset.BLACK, HeroPreset.RAINBOW -> "fg_hero_${preset.id}"
-    else -> "fg_hero_${preset.id}" + if (standing) "_stand" else ""
+fun heroArtName(preset: HeroPreset, standing: Boolean): String {
+    if (!standing) {
+        // Сидячий Монтик — новые рисунки из макета (Frame 33, те же, что в галерее скинов).
+        // Белый — это штриховой зайка для раскраски: картинки нет, он рисуется слоями (LineArtMontik).
+        return when (preset) {
+            HeroPreset.WHITE -> "fg_paint_none"
+            HeroPreset.BLUE -> "fg_skin_02"
+            HeroPreset.GREEN -> "fg_skin_03"
+            HeroPreset.PINK -> "fg_skin_04"
+            HeroPreset.PURPLE -> "fg_skin_05"
+            HeroPreset.ORANGE -> "fg_skin_11"
+            HeroPreset.BLACK -> "fg_skin_09"
+            HeroPreset.RAINBOW -> "fg_skin_10"
+        }
+    }
+    return when (preset) {
+        HeroPreset.BLUE -> "fg_story7_char"
+        HeroPreset.BLACK, HeroPreset.RAINBOW -> "fg_hero_${preset.id}"
+        else -> "fg_hero_${preset.id}_stand"
+    }
 }
 
 /** Запасной Монтик, нарисованный кодом, — если ребёнок не фотографировал свой рисунок. */
@@ -230,10 +246,15 @@ fun MontikView(
     boxSize: Dp,
     palette: HeroPalette = HeroPalette.Default,
     modifier: Modifier = Modifier,
-    standing: Boolean = false
+    standing: Boolean = false,
+    /** Без подпрыгивания и значков состояния (Монтик спит). */
+    still: Boolean = false
 ) {
-    val artName = heroArtName(state.preset, standing)
-    val useArt = sprite == null && state.heroColors.isEmpty() && rememberHasArt(artName)
+    // Готовый Монтик-картинка (20 скинов из макета) важнее заготовки.
+    val skin = Skins.picture(state.heroSkin)
+    val artName = skin?.art ?: heroArtName(state.preset, standing)
+    val useArt = sprite == null && (skin != null || state.heroColors.isEmpty()) && rememberHasArt(artName)
+    val lineArt = rememberHasLineArt()
     val transition = rememberInfiniteTransition(label = "idle")
     val bounce by transition.animateFloat(
         initialValue = 0f,
@@ -246,7 +267,7 @@ fun MontikView(
     )
     val emojiSize = (boxSize.value * 0.2f).sp
     Box(
-        modifier = modifier.size(boxSize).offset(y = bounce.dp),
+        modifier = modifier.size(boxSize).offset(y = if (still) 0.dp else bounce.dp),
         contentAlignment = Alignment.Center
     ) {
         if (sprite != null) {
@@ -258,26 +279,31 @@ fun MontikView(
             )
         } else if (useArt) {
             ArtImage(artName, Modifier.fillMaxSize(), ContentScale.Fit) {}
+        } else if (lineArt) {
+            // Раскрашенный Монтик — тот самый штриховой зайка из макета, в цветах ребёнка.
+            LineArtMontik(Modifier.fillMaxSize(), palette = palette)
         } else {
             MontikBunny(Modifier.fillMaxSize(), palette = palette)
         }
-        state.worn[Slot.HEAD]?.let { Catalog.clothing(it) }?.let {
-            Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.TopCenter))
-        }
-        state.worn[Slot.BODY]?.let { Catalog.clothing(it) }?.let {
-            Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.Center).offset(y = boxSize * 0.12f))
-        }
-        state.worn[Slot.FEET]?.let { Catalog.clothing(it) }?.let {
-            Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.BottomCenter))
-        }
-        if (state.energy < 30) {
-            Text("💤", fontSize = emojiSize, modifier = Modifier.align(Alignment.TopEnd))
-        }
-        if (state.food < 25) {
-            Text("🍽", fontSize = emojiSize, modifier = Modifier.align(Alignment.TopStart))
-        }
-        if (state.water < 25) {
-            Text("💧", fontSize = emojiSize, modifier = Modifier.align(Alignment.CenterStart))
+        if (!still) {
+            state.worn[Slot.HEAD]?.let { Catalog.clothing(it) }?.let {
+                Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.TopCenter))
+            }
+            state.worn[Slot.BODY]?.let { Catalog.clothing(it) }?.let {
+                Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.Center).offset(y = boxSize * 0.12f))
+            }
+            state.worn[Slot.FEET]?.let { Catalog.clothing(it) }?.let {
+                Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.BottomCenter))
+            }
+            if (state.energy < 30) {
+                Text("💤", fontSize = emojiSize, modifier = Modifier.align(Alignment.TopEnd))
+            }
+            if (state.food < 25) {
+                Text("🍽", fontSize = emojiSize, modifier = Modifier.align(Alignment.TopStart))
+            }
+            if (state.water < 25) {
+                Text("💧", fontSize = emojiSize, modifier = Modifier.align(Alignment.CenterStart))
+            }
         }
     }
 }
@@ -378,8 +404,9 @@ fun PayslipDialog(ui: ShiftUi, onDismiss: () -> Unit) {
         PayRow("На руки", coinsText(slip.net), bold = true)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Ставка ${slip.base} × ${slip.efficiencyPercent + slip.appearancePercent + slip.taskBonusPercent}% " +
-                "(силы ${slip.efficiencyPercent}%, вид +${slip.appearancePercent}%, премия +${slip.taskBonusPercent}%).",
+            "Ставка ${slip.base} × ${slip.efficiencyPercent + slip.appearancePercent + slip.taskBonusPercent + slip.careerPercent}% " +
+                "(силы ${slip.efficiencyPercent}%, вид +${slip.appearancePercent}%, премия +${slip.taskBonusPercent}%" +
+                (if (slip.careerPercent > 0) ", опыт конференций +${slip.careerPercent}%" else "") + ").",
             style = MaterialTheme.typography.bodyMedium,
             color = MontikColors.InkSoft
         )

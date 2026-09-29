@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,7 +49,10 @@ const val DESIGN_H = 917f
  * Теперь вся игра пишет шрифтом Pangolin (MontikFont): его буква в среднем 0,47 кегля — строки
  * переносятся так же; кегль чуть уменьшен (0,92), потому что буквы Pangolin выше.
  */
-private const val MONO_SCALE = 0.92f
+private const val MONO_SCALE = 0.9f
+
+/** Arial шире рукописного Pangolin, под который подбирались размеры: чуть уменьшаем, чтобы строки не вылезали. */
+private const val SANS_SCALE = 0.94f
 
 @Stable
 class DesignScope(val u: Float, private val density: Density) {
@@ -57,10 +61,17 @@ class DesignScope(val u: Float, private val density: Density) {
 
     /** Размер шрифта из Figma → sp (не зависит от масштаба шрифта в настройках телефона). */
     fun fs(v: Float, mono: Boolean = true): TextUnit =
-        with(density) { (v * u * (if (mono) MONO_SCALE else 1f)).dp.toSp() }
+        with(density) { (v * u * (if (mono) MONO_SCALE else SANS_SCALE)).dp.toSp() }
 
+    /**
+     * Рамка x, y, w, h из макета. wrapContentSize(TopStart, unbounded) нужен для картинок больше
+     * кадра (улица 768×1152, касса 520×924…): без него Compose центрирует такой элемент и он
+     * съезжает влево-вверх на половину «лишнего» размера, а надписи поверх — нет.
+     */
     fun Modifier.at(x: Float, y: Float, w: Float, h: Float): Modifier =
-        this.absoluteOffset(d(x), d(y)).requiredSize(d(w), d(h))
+        this.absoluteOffset(d(x), d(y))
+            .wrapContentSize(Alignment.TopStart, unbounded = true)
+            .requiredSize(d(w), d(h))
 
     fun Modifier.at(x: Float, y: Float): Modifier = this.absoluteOffset(d(x), d(y))
 }
@@ -78,11 +89,14 @@ fun DesignCanvas(
     val density = LocalDensity.current
     Box(modifier.fillMaxSize()) {
         background()
-        BoxWithConstraints(
-            Modifier.fillMaxSize().safeDrawingPadding(),
-            contentAlignment = Alignment.Center
-        ) {
-            val u = minOf(maxWidth.value / DESIGN_W, maxHeight.value / DESIGN_H)
+        // Холст — на весь экран (как кадр 412×917 в макете, строка состояния поверх картинки),
+        // а не только в «безопасной» области: иначе картинка кадра становится уже экрана и по бокам
+        // видны швы фона. Если пропорции экрана почти как у макета (современные телефоны), холст
+        // заполняет экран целиком («cover»), обрезая по краям не больше ~3%; иначе вписывается целиком.
+        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            val fit = minOf(maxWidth.value / DESIGN_W, maxHeight.value / DESIGN_H)
+            val cover = maxOf(maxWidth.value / DESIGN_W, maxHeight.value / DESIGN_H)
+            val u = if (cover / fit <= 1.06f) cover else fit
             val scope = remember(u, density) { DesignScope(u, density) }
             Box(Modifier.requiredSize((DESIGN_W * u).dp, (DESIGN_H * u).dp)) {
                 scope.content()

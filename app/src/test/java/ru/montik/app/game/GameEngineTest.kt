@@ -241,12 +241,7 @@ class GameEngineTest {
         assertTrue(start.ok)
         s = start.state
         assertEquals(850, s.coins)
-        var guard = 0
-        while (s.trip != null && guard++ < 10) {
-            val stop = GameEngine.currentStop(s)!!
-            val idx = stop.choices.indexOfFirst { GameEngine.canChoose(s, stop, it) }
-            s = GameEngine.choose(s, stop.id, idx).outcome.state
-        }
+        s = TripTestHelper.finishTrip(s)
         assertNull(s.trip)
         assertTrue("moscow" in s.completedTrips)
         assertTrue(s.skillPoints(Skill.TRAVELER) >= 3)
@@ -331,24 +326,19 @@ class GameEngineTest {
     fun sochiIsTheLastTripAndRestoresStrength() {
         val sochi = Destinations.byId("sochi")!!
         assertEquals(500, sochi.ticket)
-        assertEquals("spb", sochi.requires)
+        assertEquals("nn", sochi.requires)
         assertEquals(sochi.id, Destinations.all.last().id)
 
         // Без поездки в Петербург Сочи закрыт, даже если монет хватает.
         var s = started().copy(coins = 2000)
         assertNotNull(GameEngine.destinationStatus(s, sochi))
 
-        s = s.copy(completedTrips = setOf("moscow", "kazan", "spb"), energy = 20, food = 20, water = 20)
+        s = s.copy(completedTrips = setOf("moscow", "kazan", "spb", "nn"), energy = 20, food = 20, water = 20)
         assertNull(GameEngine.destinationStatus(s, sochi))
         s = GameEngine.startTrip(s, "sochi").state
         assertEquals(1500, s.coins)
 
-        var guard = 0
-        while (s.trip != null && guard++ < 10) {
-            val stop = GameEngine.currentStop(s)!!
-            val idx = stop.choices.indexOfFirst { GameEngine.canChoose(s, stop, it) }
-            s = GameEngine.choose(s, stop.id, idx).outcome.state
-        }
+        s = TripTestHelper.finishTrip(s)
         assertTrue("sochi" in s.completedTrips)
         assertEquals(100, s.energy)                     // отдых у моря восстанавливает силы
         assertTrue(s.food >= 70 && s.water >= 70)
@@ -856,12 +846,7 @@ class GameEngineTest {
             if (save > 0 && s.coins >= save) s = GameEngine.depositCushion(s, save).state
             if (s.coins >= 150 + 45) {
                 s = GameEngine.startTrip(s, "moscow").state
-                while (s.trip != null) {
-                    val stop = GameEngine.currentStop(s)!!
-                    val i = stop.choices.indexOfFirst { it.rating == Rating.GREAT && GameEngine.canChoose(s, stop, it) }
-                    val j = if (i >= 0) i else stop.choices.indexOfFirst { GameEngine.canChoose(s, stop, it) }
-                    s = GameEngine.choose(s, stop.id, j).outcome.state
-                }
+                s = TripTestHelper.finishTrip(s, preferGreat = true)
                 return s.day
             }
             s = GameEngine.sleep(s, SleepPlace.CABIN).state

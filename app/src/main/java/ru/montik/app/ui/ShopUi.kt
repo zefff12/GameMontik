@@ -386,11 +386,8 @@ private fun StoreHub(vm: GameViewModel, onCashier: () -> Unit, onShelves: () -> 
 
     DesignCanvas(background = { StoreBackground("fg_shop_hub_bg") }) {
         Scene("fg_shop_hub_bg", -20f, -8f, 526f, 933f) { HubFallback() }
-        if (rememberHasArt("fg_shop_hub_hero")) {
-            Art("fg_shop_hub_hero", 84f, 285f, 289f, 347f, ContentScale.FillBounds)
-        } else {
-            MontikView(sprite = vm.sprite, state = s, boxSize = d(250f), modifier = Modifier.at(104f, 300f))
-        }
+        // Твой Монтик за кассой (вместо белого человечка из макета), стойка — перед ним.
+        MontikView(sprite = vm.sprite, state = s, boxSize = d(270f), palette = heroPalette(s), modifier = Modifier.at(95f, 300f))
         Art("fg_shop_hub_counter", -170f, 385f, 826f, 494f, ContentScale.FillBounds)
         PosDisplay()
         NameBadge(s.heroName)
@@ -518,6 +515,7 @@ private fun CashierGame(vm: GameViewModel, onExit: () -> Unit) {
         // Кадр «Загрузка миниигры "касса"»: Монтик держит товар у сканера, на мониторе — «Загрузка задания....».
         DesignCanvas(background = { StoreBackground("fg_shop_load_cashier") }) {
             Scene("fg_shop_load_cashier", -49f, -7f, 520f, 924f) { CashierFallback() }
+            HeroTint("fg_shop_load_cashier", -49f, -7f, 520f, 924f, vm.state)
             Box(Modifier.at(87f, 166f, 251f, 207f).background(Color.Black), contentAlignment = Alignment.Center) {
                 Text(
                     "Загрузка задания....",
@@ -776,6 +774,7 @@ private fun ShelfGame(vm: GameViewModel, onExit: () -> Unit) {
             // Кадр «Загрузка миниигры "стенд"».
             DesignCanvas(background = { StoreBackground("fg_shelf_load_bg") }) {
                 Scene("fg_shelf_load_bg", -12f, 0f, 424f, 943f) { ShelfFallback() }
+                HeroTint("fg_shelf_load_bg", -12f, 0f, 424f, 943f, vm.state)
                 Box(Modifier.at(61f, 391f, 298f, 68f).clip(RoundedCornerShape(d(34f))).background(Color.White.copy(alpha = 0.9f)))
                 Text(
                     "Загрузка задания....",

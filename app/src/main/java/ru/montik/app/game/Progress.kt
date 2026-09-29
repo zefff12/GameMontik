@@ -198,7 +198,7 @@ data class Magnet(val destinationId: String, val city: String, val emoji: String
 
 object Keepsakes {
     fun magnets(state: GameState): List<Magnet> = Destinations.all.map {
-        Magnet(it.id, it.name, it.emoji, it.id in state.completedTrips)
+        Magnet(it.id, it.name, it.emoji, it.id in state.visitedCities || it.id in state.completedTrips)
     }
 
     /** Вещи, купленные на накопленное (велосипед, приставка): они появляются в комнате. */

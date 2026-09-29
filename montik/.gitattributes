@@ -1,0 +1,12 @@
+# Единые окончания строк, чтобы gradlew работал на любой системе
+* text=auto
+*.sh text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+
+# Бинарные файлы
+*.png binary
+*.jpg binary
+*.webp binary
+*.jar binary
+*.ttf binary

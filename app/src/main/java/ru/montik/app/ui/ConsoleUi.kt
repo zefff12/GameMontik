@@ -158,6 +158,7 @@ fun ConsoleScreen(vm: GameViewModel) {
         }
     }) {
         if (rememberHasArt("fg_console_bg")) Art("fg_console_bg", 0f, 0f, DESIGN_W, 1870f * CK, ContentScale.FillBounds)
+        HeroTint("fg_console_bg", 0f, 0f, DESIGN_W, 1870f * CK, vm.state)
 
         // Экран телевизора: дорога, соперники, машинка Монтика.
         Box(Modifier.at(TV_X, TV_Y, TV_W, TV_H).clipToBounds()) {

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Монтик-зверёк на адаптивной иконке. Рисунок целиком лежит в безопасной зоне 66x66. -->
+    <path android:fillColor="#3F4A2E" android:pathData="M39.12,55.24 h29.76 a6.2,6.2 0 0,1 6.2,6.2 v9.92 a6.2,6.2 0 0,1 -6.2,6.2 h-29.76 a6.2,6.2 0 0,1 -6.2,-6.2 v-9.92 a6.2,6.2 0 0,1 6.2,-6.2 z" />
+    <group android:rotation="-14" android:pivotX="43.46" android:pivotY="41.6">
+        <path android:fillColor="#5DBBF2" android:pathData="M37.88,37.26 a5.89,13.02 0 1,0 11.78,0 a5.89,13.02 0 1,0 -11.78,0 z" />
+    </group>
+    <group android:rotation="-14" android:pivotX="43.46" android:pivotY="41.6">
+        <path android:fillColor="#FFA9B8" android:pathData="M40.67,36.95 a3.1,8.99 0 1,0 6.2,0 a3.1,8.99 0 1,0 -6.2,0 z" />
+    </group>
+    <group android:rotation="14" android:pivotX="64.54" android:pivotY="41.6">
+        <path android:fillColor="#5DBBF2" android:pathData="M58.34,37.26 a5.89,13.02 0 1,0 11.78,0 a5.89,13.02 0 1,0 -11.78,0 z" />
+    </group>
+    <group android:rotation="14" android:pivotX="64.54" android:pivotY="41.6">
+        <path android:fillColor="#FFA9B8" android:pathData="M61.13,36.95 a3.1,8.99 0 1,0 6.2,0 a3.1,8.99 0 1,0 -6.2,0 z" />
+    </group>
+    <path android:fillColor="#86D4FF" android:pathData="M37.88,67.02 a16.12,13.02 0 1,0 32.24,0 a16.12,13.02 0 1,0 -32.24,0 z" />
+    <path android:fillColor="#FFF6EA" android:pathData="M44.08,68.88 a9.92,8.68 0 1,0 19.84,0 a9.92,8.68 0 1,0 -19.84,0 z" />
+    <path android:fillColor="#5DBBF2" android:pathData="M39.74,79.42 a5.58,3.1 0 1,0 11.16,0 a5.58,3.1 0 1,0 -11.16,0 z" />
+    <path android:fillColor="#5DBBF2" android:pathData="M57.1,79.42 a5.58,3.1 0 1,0 11.16,0 a5.58,3.1 0 1,0 -11.16,0 z" />
+    <path android:fillColor="#5DBBF2" android:pathData="M32.92,65.78 a4.03,6.82 0 1,0 8.06,0 a4.03,6.82 0 1,0 -8.06,0 z" />
+    <group android:rotation="25" android:pivotX="71.36" android:pivotY="61.44">
+        <path android:fillColor="#5DBBF2" android:pathData="M67.02,65.78 a4.03,6.82 0 1,0 8.06,0 a4.03,6.82 0 1,0 -8.06,0 z" />
+    </group>
+    <path android:fillColor="#59663F" android:pathData="M42.84,57.72 h0.62 a1.24,1.24 0 0,1 1.24,1.24 v9.92 a1.24,1.24 0 0,1 -1.24,1.24 h-0.62 a1.24,1.24 0 0,1 -1.24,-1.24 v-9.92 a1.24,1.24 0 0,1 1.24,-1.24 z" />
+    <path android:fillColor="#59663F" android:pathData="M64.54,57.72 h0.62 a1.24,1.24 0 0,1 1.24,1.24 v9.92 a1.24,1.24 0 0,1 -1.24,1.24 h-0.62 a1.24,1.24 0 0,1 -1.24,-1.24 v-9.92 a1.24,1.24 0 0,1 1.24,-1.24 z" />
+    <path android:fillColor="#86D4FF" android:pathData="M34.16,51.52 a19.84,14.88 0 1,0 39.68,0 a19.84,14.88 0 1,0 -39.68,0 z" />
+    <path android:fillColor="#FFF6EA" android:pathData="M41.6,57.1 a12.4,8.06 0 1,0 24.8,0 a12.4,8.06 0 1,0 -24.8,0 z" />
+    <path android:fillColor="#FFA9B8" android:pathData="M36.95,55.24 a2.79,2.79 0 1,0 5.58,0 a2.79,2.79 0 1,0 -5.58,0 z" />
+    <path android:fillColor="#FFA9B8" android:pathData="M65.47,55.24 a2.79,2.79 0 1,0 5.58,0 a2.79,2.79 0 1,0 -5.58,0 z" />
+    <path android:fillColor="#2A1E1E" android:pathData="M42.72,49.04 a3.84,3.84 0 1,0 7.69,0 a3.84,3.84 0 1,0 -7.69,0 z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M46.44,47.8 a1.24,1.24 0 1,0 2.48,0 a1.24,1.24 0 1,0 -2.48,0 z" />
+    <path android:fillColor="#2A1E1E" android:pathData="M57.6,49.04 a3.84,3.84 0 1,0 7.69,0 a3.84,3.84 0 1,0 -7.69,0 z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M61.32,47.8 a1.24,1.24 0 1,0 2.48,0 a1.24,1.24 0 1,0 -2.48,0 z" />
+    <path android:fillColor="#2A1E1E" android:pathData="M52.14,54.62 a1.86,1.24 0 1,0 3.72,0 a1.86,1.24 0 1,0 -3.72,0 z" />
+    <path android:fillColor="#FFC928" android:pathData="M49.04,34.78 L49.04,30.96 L51.52,33.04 L54,27.84 L56.48,33.04 L58.96,30.96 L58.96,34.78 z" />
+    <path android:strokeColor="#2A1E1E" android:strokeWidth="1" android:strokeLineCap="round" android:pathData="M50.9,56.17 Q54,62.37 57.1,56.17" />
+</vector>

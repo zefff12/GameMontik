@@ -89,11 +89,14 @@ object MontikSizes {
 }
 
 /**
- * Шрифт всей игры — рукописный Pangolin (res/font/pangolin.ttf, лицензия SIL OFL 1.1,
- * текст лицензии — docs/fonts/OFL-Pangolin.txt). Он же нарисован в новом макете панели.
- * Жирное начертание Android достраивает сам.
+ * Шрифт всей игры — как Arial. Сам Arial — платный шрифт Microsoft/Monotype, вшивать его в приложение нельзя,
+ * поэтому взят Liberation Sans: он сделан по размерам Arial буква в букву и выглядит так же
+ * (res/font/liberation_sans*.ttf, лицензия SIL OFL 1.1 — docs/fonts/OFL-LiberationSans.txt).
  */
-val MontikFont: FontFamily = FontFamily(Font(R.font.pangolin))
+val MontikFont: FontFamily = FontFamily(
+    Font(R.font.liberation_sans, FontWeight.Normal),
+    Font(R.font.liberation_sans_bold, FontWeight.Bold)
+)
 
 private val Mono = MontikFont
 

@@ -85,7 +85,8 @@ object BankWork {
         val appearance = state.appearancePercent
         val perf = performance.coerceIn(0, 100)
         val bonus = perf / 2
-        val gross = (base * (eff + appearance + bonus) + 50) / 100
+        val career = Travel.careerPercent(state)
+        val gross = (base * (eff + appearance + bonus + career) + 50) / 100
         val tax = (gross * Rules.TAX_PERCENT + 50) / 100
         val net = gross - tax
 
@@ -95,6 +96,7 @@ object BankWork {
         if (bonus > 0) notes += "Премия за внимательность и скорость: +$bonus%."
         if (eff < 100) notes += "Из-за усталости, голода или жажды Монтик работал не в полную силу ($eff%)."
         if (appearance > 0) notes += "Опрятный вид добавил +$appearance% к заработку."
+        if (career > 0) notes += GameEngine.careerNote(state)
 
         c.earn(net)
         c.s = c.s.copy(shifts = c.s.shifts + 1, bankShifts = c.s.bankShifts + 1, totalTax = c.s.totalTax + tax)
@@ -111,7 +113,7 @@ object BankWork {
         val record = bestBefore != null && perf > bestBefore
         if (bestBefore == null || perf > bestBefore) c.s = c.s.copy(shopBest = c.s.shopBest + (KEY to perf))
         c.xp(Progress.XP_SHIFT + stars * Progress.XP_SHOP_STAR)
-        val slip = Payslip("Банк: проверка купюр", base, eff, appearance, bonus, gross, tax, net, notes, stars = stars, record = record)
+        val slip = Payslip("Банк: проверка купюр", base, eff, appearance, bonus, gross, tax, net, notes, stars = stars, record = record, careerPercent = career)
         return ShiftResult(c.done(), slip)
     }
 

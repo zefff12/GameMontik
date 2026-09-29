@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -138,6 +139,8 @@ private fun StoryBackground(frame: StoryFrame) {
             ArtImage(
                 frame.bg,
                 Modifier
+                    // Без wrapContentSize картинка больше экрана встаёт по центру и съезжает влево.
+                    .wrapContentSize(Alignment.TopStart, unbounded = true)
                     .requiredSize(maxWidth * 1.2646f, maxHeight * 1.2633f)
                     .offset(maxWidth * -0.2646f, maxHeight * -0.2631f),
                 ContentScale.FillBounds

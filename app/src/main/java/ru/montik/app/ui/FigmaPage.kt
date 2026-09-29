@@ -234,17 +234,18 @@ fun goalArt(id: String): String? = when (id) {
     "trip_kazan" -> "fg_ui_g_kazan"
     "trip_spb" -> "fg_ui_g_spb"
     "trip_sochi" -> "fg_ui_g_sochi"
+    "trip_nn" -> "fg_trip_thumb_nn"
     "bike" -> "fg_ui_g_bike"
     "console" -> "fg_ui_g_console"
     else -> null
 }
 
 /** Фотографии городов — в рамке, остальные цели — наклейки. */
-fun goalIsPhoto(id: String): Boolean = id == "trip_moscow" || id == "trip_kazan" || id == "trip_spb"
+fun goalIsPhoto(id: String): Boolean = id == "trip_moscow" || id == "trip_kazan" || id == "trip_spb" || id == "trip_nn"
 
 fun goalTint(id: String): Color = when (id) {
     "trip_moscow", "trip_kazan" -> Page.Mint
-    "trip_spb" -> Page.Sky
+    "trip_spb", "trip_nn" -> Page.Sky
     "trip_sochi" -> Page.Leaf
     "bike" -> Page.Sand
     "console" -> Page.Lilac

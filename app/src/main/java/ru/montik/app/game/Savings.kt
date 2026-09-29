@@ -30,7 +30,7 @@ object Goals {
     val all: List<SavingsGoal> = listOf(
         SavingsGoal(
             "trip_moscow", "Поездка в Москву", "🏰", 150,
-            "Билет на поезд до столицы. В пути — три задания.", tripId = "moscow"
+            "Билет на самолёт до столицы: прогулка, три задания и бизнес-конференция.", tripId = "moscow"
         ),
         SavingsGoal(
             "trip_kazan", "Поездка в Казань", "🕌", 200,
@@ -41,8 +41,12 @@ object Goals {
             "Северная столица. Открывается после Казани.", tripId = "spb"
         ),
         SavingsGoal(
+            "trip_nn", "Поездка в Нижний Новгород", "⛪", 300,
+            "Древний город на Волге. Открывается после Петербурга.", tripId = "nn"
+        ),
+        SavingsGoal(
             "trip_sochi", "Отдых на море в Сочи", "🌊", 500,
-            "Самая большая поездка. Открывается после Петербурга.", tripId = "sochi"
+            "Самая большая поездка. Открывается после Нижнего Новгорода.", tripId = "sochi"
         ),
         SavingsGoal("bike", "Велосипед", "🚲", 300, "Кататься по набережной. Хорошее настроение надолго."),
         SavingsGoal("console", "Игровая приставка", "🎮", 600, "Большая покупка: копить придётся терпеливо.")
@@ -171,7 +175,7 @@ object Goals {
         c.s = c.s.copy(piggy = c.s.piggy - goal.cost, goalId = null)
         c.countSpend(goal.cost, SpendKind.OTHER, "${goal.title} (из копилки)")
         if (tripId != null) {
-            c.s = c.s.copy(trip = TripProgress(tripId, 0))
+            c.s = c.s.copy(trip = TripProgress(tripId, 0, TripPhase.FLY_OUT))
             c.say("${goal.emoji} Цель достигнута! Билет куплен на деньги из копилки. Поехали!")
             c.log("поехал на деньги из копилки: ${goal.title}")
             c.teach(Lesson.BUDGET)

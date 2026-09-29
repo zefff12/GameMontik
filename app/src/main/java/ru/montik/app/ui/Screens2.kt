@@ -59,73 +59,6 @@ import ru.montik.app.game.TaskTheme
 import ru.montik.app.game.Tasks
 import ru.montik.app.game.SleepPlace
 
-// ───────────────────────── Путешествия ─────────────────────────
-
-@Composable
-fun TravelScreen(vm: GameViewModel) {
-    ScreenScaffold("🚂 Путешествие", vm) {
-        val s = vm.state
-        val trip = s.trip
-        val stop = GameEngine.currentStop(s)
-        val dest = trip?.let { Destinations.byId(it.destinationId) }
-        if (trip != null && stop != null && dest != null) {
-            MeterCard(vm)
-            MontikCard {
-                Text("${dest.emoji} Путешествие: ${dest.name}", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(6.dp))
-                Text("Остановка ${trip.stopsDone + 1} из ${dest.stops.size}", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { trip.stopsDone / dest.stops.size.toFloat() },
-                    modifier = Modifier.fillMaxWidth().height(10.dp),
-                    color = MontikColors.Ink,
-                    trackColor = MontikColors.Track
-                )
-            }
-            ScenarioCard(stop, s) { index -> vm.choose(stop.id, index) }
-        } else {
-            MontikCard(color = MontikColors.SurfaceTint) {
-                Text(
-                    "Монтик живёт в городе ${Destinations.HOME_CITY}. Отсюда можно отправиться в другие города. " +
-                        "В пути его ждут задания: нужно сделать правильный выбор.",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-            for (d in Destinations.all) {
-                val status = GameEngine.destinationStatus(s, d)
-                val visited = d.id in s.completedTrips
-                MontikCard {
-                    Text("${d.emoji} ${d.name}", style = MaterialTheme.typography.titleMedium)
-                    Text(d.intro, style = MaterialTheme.typography.bodyLarge)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Билет: ${d.ticket} монет", style = MaterialTheme.typography.bodyMedium, color = MontikColors.InkSoft)
-                    Spacer(Modifier.height(8.dp))
-                    if (visited) {
-                        Text("✅ Уже побывали", style = MaterialTheme.typography.titleMedium, color = MontikColors.Good)
-                    } else {
-                        BigButton(
-                            "Купить билет (−${d.ticket})",
-                            onClick = { vm.startTrip(d.id) },
-                            enabled = status == null && s.coins >= d.ticket
-                        )
-                        if (status != null) {
-                            Spacer(Modifier.height(4.dp))
-                            Text("🔒 $status", style = MaterialTheme.typography.bodyMedium, color = MontikColors.InkSoft)
-                        } else if (s.coins < d.ticket) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "Не хватает ${d.ticket - s.coins} монет. Заработай на смене!",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MontikColors.InkSoft
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 // ───────────────────────── Сон ─────────────────────────
 
 @Composable
@@ -357,7 +290,7 @@ fun BankScreen(vm: GameViewModel) {
             )
             Text("В кошельке: ${coinsText(s.coins)}", style = MaterialTheme.typography.bodyMedium, color = MontikColors.InkSoft)
             Spacer(Modifier.height(10.dp))
-            if (s.debt > 0) {
+            if (s.debt > 0 || s.credits.isNotEmpty()) {
                 Text(
                     "Пока есть долг, вклад открыть нельзя: сначала верни кредит. " +
                         "Банк берёт за кредит больше, чем платит по вкладу, поэтому копить с долгом невыгодно.",
@@ -391,16 +324,10 @@ fun BankScreen(vm: GameViewModel) {
             }
         }
 
-        MontikCard {
-            Text("Кредит", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(6.dp))
-            if (s.debt > 0) {
-                Text("Нужно вернуть банку: ${coinsText(s.debt)}", style = MaterialTheme.typography.titleMedium, color = MontikColors.Bad)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Долг не растёт, но и не исчезает сам. Пока он есть, часть заработка уходит на его возврат.",
-                    style = MaterialTheme.typography.bodyLarge
-                )
+        // Старый долг из прежней версии игры (если был) — его можно вернуть здесь.
+        if (s.debt > 0) {
+            MontikCard {
+                Text("Старый долг банку: ${coinsText(s.debt)}", style = MaterialTheme.typography.titleMedium, color = MontikColors.Bad)
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
@@ -416,26 +343,10 @@ fun BankScreen(vm: GameViewModel) {
                         modifier = Modifier.weight(1f)
                     ) { Text("Вернуть всё") }
                 }
-            } else {
-                Text(
-                    "Банк может дать ${Rules.LOAN_AMOUNT} монет сразу, но вернуть придётся ${Rules.LOAN_REPAY}. " +
-                        "Разница в ${Rules.LOAN_REPAY - Rules.LOAN_AMOUNT} монет — это плата банку за то, что деньги дали раньше времени.",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Подумай: если можно подождать и накопить — накопить дешевле.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MontikColors.InkSoft
-                )
-                Spacer(Modifier.height(10.dp))
-                BigButton(
-                    "Взять ${Rules.LOAN_AMOUNT} и вернуть ${Rules.LOAN_REPAY}",
-                    onClick = { vm.takeLoan() },
-                    primary = false
-                )
             }
         }
+
+        CreditsSection(vm)
     }
 }
 
@@ -772,6 +683,7 @@ private fun ParentDashboard(vm: GameViewModel) {
         Spacer(Modifier.height(8.dp))
         BigButton("Сбросить тестовый профиль", onClick = { confirmTest = true }, primary = false)
     }
+    CheatPanel(vm)
     MontikCard {
         val done = Lesson.values().count { it.name in s.seenLessons }
         Text("Цели обучения: $done из ${Lesson.values().size}", style = MaterialTheme.typography.titleMedium)
@@ -890,5 +802,66 @@ private fun PraiseCard(vm: GameViewModel) {
             vm.sendPraise(text)
             text = ""
         }, enabled = text.isNotBlank())
+    }
+}
+
+// ───────────────────────── Чит-панель (для взрослых и проверки) ─────────────────────────
+
+/**
+ * Чит-панель в разделе для взрослых (он закрыт PIN-кодом): добавить монеты, промотать дни,
+ * позвать енота на рынок, обнулить кредиты, открыть все скины. Нужна для проверки игры.
+ */
+@Composable
+private fun CheatPanel(vm: GameViewModel) {
+    var amount by rememberSaveable { mutableStateOf("") }
+    MontikCard(color = MontikColors.SurfaceTint) {
+        Text("🎮 Чит-панель", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Для проверки игры взрослым. Ребёнок сюда не попадёт без PIN-кода.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MontikColors.InkSoft
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Монет в кошельке: ${coinsText(vm.state.coins)}", style = MaterialTheme.typography.bodyLarge)
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (n in listOf(100, 500, 1000)) {
+                OutlinedButton(
+                    onClick = { vm.cheatCoins(n) },
+                    shape = MontikShapes.Chip,
+                    modifier = Modifier.weight(1f)
+                ) { Text("+$n") }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { v -> amount = v.filter { it.isDigit() }.take(6) },
+                label = { Text("Сколько монет") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f)
+            )
+            OutlinedButton(
+                onClick = {
+                    vm.cheatCoins(amount.toIntOrNull() ?: 0)
+                    amount = ""
+                },
+                enabled = (amount.toIntOrNull() ?: 0) > 0,
+                shape = MontikShapes.Chip
+            ) { Text("Добавить") }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { vm.cheatSkipDays(1) }, shape = MontikShapes.Chip, modifier = Modifier.weight(1f)) { Text("+1 день") }
+            OutlinedButton(onClick = { vm.cheatSkipDays(10) }, shape = MontikShapes.Chip, modifier = Modifier.weight(1f)) { Text("+10 дней") }
+        }
+        Spacer(Modifier.height(8.dp))
+        BigButton("🦝 Позвать енота на рынок сейчас", onClick = { vm.cheatBarterNow() }, primary = false)
+        Spacer(Modifier.height(8.dp))
+        BigButton("🎨 Открыть все скины и краски", onClick = { vm.cheatUnlockSkins() }, primary = false)
+        Spacer(Modifier.height(8.dp))
+        BigButton("💳 Обнулить кредиты и долги", onClick = { vm.cheatClearCredits() }, primary = false)
     }
 }

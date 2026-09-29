@@ -58,6 +58,8 @@ fun BankJobScreen(vm: GameViewModel) {
 private fun BankIntro(vm: GameViewModel, onStart: () -> Unit) {
     DesignCanvas(background = { BankBackground("fg_bank_hall") }) {
         if (rememberHasArt("fg_bank_hall")) Art("fg_bank_hall", 0f, 0f, DESIGN_W, 1870f * BK, ContentScale.FillBounds)
+        // Белый человечек из макета стёрт — на его месте твой Монтик.
+        SceneMontik(vm, -30f, 520f, 260f)
         Bubble(
             "Сегодня Монтик проверяет деньги! Слева — образец купюры. Сравни с ним купюру клиента: " +
                 "если всё совпадает — жми ✓, если она испорчена или подделана — ✗.",
@@ -112,6 +114,7 @@ private fun BankDesk(vm: GameViewModel) {
 
     DesignCanvas(background = { BankBackground("fg_bank_desk") }) {
         if (rememberHasArt("fg_bank_desk")) Art("fg_bank_desk", 0f, 0f, DESIGN_W, 1870f * BK, ContentScale.FillBounds)
+        SceneMontik(vm, -60f, 470f, 270f)
 
         // Купюра клиента — на месте правой купюры в макете.
         val defect = notes[index]
