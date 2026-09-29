@@ -86,3 +86,12 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+
+// После каждой сборки отладочного APK (Build → Generate APKs или assembleDebug)
+// готовый файл копируется в папку apk/Montik.apk в корне проекта — его можно сразу скачать с GitHub.
+val copyApkToRepo by tasks.registering(Copy::class) {
+    from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
+    into(rootProject.layout.projectDirectory.dir("apk"))
+    rename { "Montik.apk" }
+}
+tasks.matching { it.name == "assembleDebug" }.configureEach { finalizedBy(copyApkToRepo) }
