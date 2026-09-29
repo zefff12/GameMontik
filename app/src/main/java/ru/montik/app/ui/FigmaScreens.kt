@@ -176,7 +176,6 @@ fun FigmaStory(onDone: () -> Unit) {
     // Листать историю свайпом: провёл пальцем влево или вправо — следующая страница.
     // (Кнопка «→» внизу на телефонах уходит под системную панель навигации.)
     val next = { if (last) onDone() else index = i + 1 }
-    val navBottomPx = WindowInsets.navigationBars.getBottom(LocalDensity.current)
     val swipe = Modifier.pointerInput(i) {
         var dragged = 0f
         var fired = false
@@ -194,8 +193,8 @@ fun FigmaStory(onDone: () -> Unit) {
     }
 
     DesignCanvas(modifier = swipe, background = { StoryBackground(frame) }) {
-        // Точки и кнопка поднимаются над системной панелью навигации, если она их закрывает.
-        val lift = (navBottomPx / LocalDensity.current.density / u + 8f).coerceAtMost(90f)
+        // Холст уже стоит над системной панелью навигации (см. DesignCanvas), поэтому ничего не поднимаем.
+        val lift = 0f
         // Метка места: булавка, город и год.
         val pin = frame.pin
         val head = frame.head
@@ -258,7 +257,10 @@ fun FigmaStory(onDone: () -> Unit) {
             )
         }
         if (charArt != null && char != null) {
-            Art(charArt, char.x, char.y, char.w, char.h, ContentScale.Fit)
+            // Монтик стоит над белой карточкой с текстом (текст шрифтом Arial бывает на строку длиннее).
+            val cardTop = card?.let { it.y - 34f } ?: DESIGN_H
+            val charY = minOf(char.y, cardTop - char.h)
+            Art(charArt, char.x, charY, char.w, char.h, ContentScale.Fit)
         }
 
         StoryNext(frame.nextX, frame.nextY - lift, frame.limeNext) { next() }

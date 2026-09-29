@@ -112,8 +112,10 @@ private val typography = Typography(
 )
 
 private val scheme = lightColorScheme(
-    primary = MontikColors.Lime,
-    onPrimary = MontikColors.Ink,
+    // Тёмно-зелёный: им пишутся обычные кнопки-рамки и текстовые кнопки. Салатовый Lime на светлом фоне
+    // почти не читался («Горжусь тобой!» в разделе для родителей).
+    primary = Color(0xFF2E7D4F),
+    onPrimary = Color.White,
     secondary = MontikColors.LimeDeep,
     onSecondary = MontikColors.Ink,
     background = MontikColors.Cream,

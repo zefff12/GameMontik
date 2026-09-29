@@ -5,6 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
@@ -93,12 +96,31 @@ fun DesignCanvas(
         // а не только в «безопасной» области: иначе картинка кадра становится уже экрана и по бокам
         // видны швы фона. Если пропорции экрана почти как у макета (современные телефоны), холст
         // заполняет экран целиком («cover»), обрезая по краям не больше ~3%; иначе вписывается целиком.
-        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            val fit = minOf(maxWidth.value / DESIGN_W, maxHeight.value / DESIGN_H)
-            val cover = maxOf(maxWidth.value / DESIGN_W, maxHeight.value / DESIGN_H)
-            val u = if (cover / fit <= 1.06f) cover else fit
+        // Низ холста — над системной панелью навигации (кнопки «◁ ○ ▢»), чтобы нижние кнопки игры
+        // не уходили под неё. Фон ([background]) по-прежнему на весь экран.
+        val navBottom = with(density) { WindowInsets.navigationBars.getBottom(density).toDp() }
+        BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = navBottom), contentAlignment = Alignment.Center) {
+            val fitW = maxWidth.value / DESIGN_W
+            val fitH = maxHeight.value / DESIGN_H
+            val u: Float
+            val stretchX: Float
+            if (fitW >= fitH && fitW / fitH <= 1.10f) {
+                // Экран чуть шире макета (так бывает из-за панели навигации): холст занимает всю высоту,
+                // а по ширине чуть растягивается — без полос по бокам и без обрезки сверху и снизу.
+                u = fitH
+                stretchX = fitW / fitH
+            } else {
+                val fit = minOf(fitW, fitH)
+                val cover = maxOf(fitW, fitH)
+                u = if (cover / fit <= 1.06f) cover else fit
+                stretchX = 1f
+            }
             val scope = remember(u, density) { DesignScope(u, density) }
-            Box(Modifier.requiredSize((DESIGN_W * u).dp, (DESIGN_H * u).dp)) {
+            Box(
+                Modifier
+                    .requiredSize((DESIGN_W * u).dp, (DESIGN_H * u).dp)
+                    .graphicsLayer { scaleX = stretchX }
+            ) {
                 scope.content()
             }
         }
