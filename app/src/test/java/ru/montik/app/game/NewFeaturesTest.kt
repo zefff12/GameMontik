@@ -22,7 +22,8 @@ class NewFeaturesTest {
     fun freeSkinsAreOwnedPaidAreNot() {
         val s = started()
         assertTrue(Skins.owns(s, HeroPreset.WHITE))
-        assertTrue(Skins.owns(s, HeroPreset.BLUE))
+        assertTrue(Skins.owns(s, HeroPreset.WHITE))
+        assertFalse(Skins.owns(s, HeroPreset.BLUE))   // синий — за 60 монет, как в макете
         assertFalse(Skins.owns(s, HeroPreset.RAINBOW))
         assertTrue(Skins.ownsColor(s, Hero.PALETTE[0]))
         assertFalse(Skins.ownsColor(s, Hero.PALETTE.last()))

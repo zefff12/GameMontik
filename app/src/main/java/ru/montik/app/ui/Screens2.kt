@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -69,6 +70,20 @@ fun SleepScreen(vm: GameViewModel) {
     val plan = vm.sleepPlan(nowMs)
     val nowV = VirtualClock.now(s, nowMs)
     val laterBed = plan.bedV > nowV
+    // Экран «Пора спать» целиком из макета (кадр Figma «Android Compact - 86»): будильник и кнопка уже в кадре.
+    // Нажимаемые зоны: кнопка «Лечь спать» и стрелка «назад».
+    if (rememberHasArt("fg2_sleep_btn")) {
+        NewSleepScreen(vm)
+        return
+    }
+    if (rememberHasArt("fg_figma_sleep")) {
+        DesignCanvas(background = { Box(Modifier.fillMaxSize().background(Color(0xFFEFF7E2))) }) {
+            FrameArt("fg_figma_sleep")
+            PressHit(40f, 658f, 330f, 84f, 42f) { vm.goToBed(SleepPlace.CABIN) }
+            PressHit(16f, 56f, 60f, 60f, 30f) { vm.back() }
+        }
+        return
+    }
     Box(
         Modifier
             .fillMaxSize()
@@ -197,6 +212,11 @@ internal fun AlarmClock(modifier: Modifier = Modifier) {
 
 @Composable
 fun CushionScreen(vm: GameViewModel) {
+    // Новый макет «Подушка безопасности».
+    if (rememberHasArt("fg3_cushion_bg", "fg3_cushion_i640_clean")) {
+        NewCushionScreen(vm)
+        return
+    }
     ScreenScaffold("Подушка безопасности", vm, icon = "fg_ui_h_cushion", footer = "fg_ui_foot_cushion") {
         val s = vm.state
         IconCard("fg_ui_c_montik", "🛟", color = Page.Mint, iconSize = 96.dp) {
@@ -263,12 +283,19 @@ fun CushionScreen(vm: GameViewModel) {
 
 @Composable
 fun BankScreen(vm: GameViewModel) {
+    var credits by rememberSaveable { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = credits) { credits = false }
+    // Банк по новому макету; «Кредиты» открывают прежнюю подробную страницу.
+    if (!credits && rememberHasArt("fg2_bank")) {
+        NewBankScreen(vm) { credits = true }
+        return
+    }
     ScreenScaffold("🏦 Банк", vm) {
         val s = vm.state
         MontikCard(color = MontikColors.SurfaceTint) {
             Text(
                 "Банк хранит деньги и платит за это проценты: каждый день он добавляет " +
-                    "${Rules.DEPOSIT_PERCENT} монет на каждые 100, которые пролежали на вкладе целый день. " +
+                    "${Rules.DEPOSIT_PERCENT}% к вкладу каждую неделю. " +
                     "Так деньги начинают работать сами.",
                 style = MaterialTheme.typography.bodyLarge
             )
@@ -284,7 +311,7 @@ fun BankScreen(vm: GameViewModel) {
             Text("Вклад: ${coinsText(s.deposit)}", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
             Text(
-                if (s.deposit > 0) "Завтра банк добавит ${coinsText(GameEngine.dailyInterest(s))}."
+                if (s.deposit > 0) "Через ${GameEngine.daysToInterest(s)} дн. банк добавит ${coinsText(GameEngine.weeklyInterest(s))}."
                 else "Пока на вкладе пусто. Положи от ${Rules.MIN_DEPOSIT} монет — и завтра их станет больше.",
                 style = MaterialTheme.typography.bodyLarge
             )
@@ -480,6 +507,11 @@ private fun PinField(value: String, label: String, onChange: (String) -> Unit) {
 
 @Composable
 fun ParentScreen(vm: GameViewModel) {
+    // Новый макет «Для родителей»: неподвижная шапка и листаемые страницы.
+    if (rememberHasArt("fg3_par_head", "fg3_par_p1", "fg3_par_p7")) {
+        NewParentScreen(vm)
+        return
+    }
     Box(Modifier.fillMaxSize().background(MontikColors.Cream), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier
@@ -736,7 +768,7 @@ private fun ParentDashboard(vm: GameViewModel) {
         AlertDialog(
             onDismissRequest = { confirmTest = false },
             containerColor = MontikColors.Surface,
-            title = { Text("Сбросить тестовый профиль?") },
+            title = { NoDialogDim(); Text("Сбросить тестовый профиль?") },
             text = { Text("Прогресс удалится, игра начнётся заново с готовым героем, 300 монетами и включённым демо-режимом.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -751,7 +783,7 @@ private fun ParentDashboard(vm: GameViewModel) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
             containerColor = MontikColors.Surface,
-            title = { Text("Удалить весь прогресс?") },
+            title = { NoDialogDim(); Text("Удалить весь прогресс?") },
             text = { Text("Монтик, деньги, навыки и рисунок будут удалены. Это нельзя отменить.") },
             confirmButton = {
                 TextButton(onClick = {

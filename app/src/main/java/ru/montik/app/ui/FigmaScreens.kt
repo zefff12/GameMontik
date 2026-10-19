@@ -1,8 +1,13 @@
 package ru.montik.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
@@ -24,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,42 +56,20 @@ import ru.montik.app.game.VirtualClock
 
 @Composable
 fun FigmaSplash(onStart: () -> Unit) {
-    DesignCanvas(background = { ArtImage("fg_splash_bg", Modifier.fillMaxSize(), ContentScale.Crop) {} }) {
-        // Белое свечение за логотипом (эллипс 322×253 с размытием).
-        SoftGlow(cx = 206f, cy = 204.5f, w = 522f, h = 453f, color = Color.White, peak = 0.95f)
-        Art("fg_splash_title", 56f, 122f, 300f, 100f, ContentScale.Fit)
-        Art("fg_splash_star", 166f, 94f, 79f, 56f, ContentScale.Fit)
+    // Заставка по кадру «история начало» нового макета: фон (поля экрана — его зеркальное продолжение,
+    // без второго фона), мягкое белое свечение за логотипом, логотип со звездой, подпись, Монтик и «Начать».
+    DesignCanvas {
+        FrameArt("fg3_sp_bg")
+        SoftGlow(206f, 204.5f, 380f, 300f, Color.White, peak = 0.85f)
+        Art("fg3_sp_title", 56f, 122f, 300f, 100f, ContentScale.FillBounds)
+        Art("fg3_sp_star", 166f, 94f, 79f, 56f, ContentScale.FillBounds)
         DText(
-            "Твой путь к финансовой\nсвободе начинается\nс маленького шага",
-            x = 56f, y = 222f, w = 300f, size = 20f,
-            align = TextAlign.Center, softWrap = false
+            "Твой путь к финансовой свободе начинается с маленького шага",
+            96f, 222f, 220f, 20f, color = Color(0xFF0A3652), align = TextAlign.Center, lineHeight = 1.0f
         )
-        Art("fg_splash_hero", 0f, 444f, 280f, 280f, ContentScale.Fit)
-
-        // Кнопка «Начать»: белая слева, голубая справа.
-        Box(
-            Modifier
-                .at(44f, 774f, 323f, 73f)
-                .clip(RoundedCornerShape(d(36.5f)))
-                .background(
-                    Brush.horizontalGradient(
-                        0f to Color.White,
-                        0.444f to Color.White,
-                        0.711f to Color(0xFF57B7FF),
-                        1f to Color(0xFF57B7FF)
-                    )
-                )
-                .clickable(onClick = onStart),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "Начать",
-                color = MontikColors.Ink,
-                fontSize = fs(32f),
-                fontFamily = MontikFont,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Art("fg3_sp_hero", 0f, 476f, 237f, 237f, ContentScale.FillBounds)
+        Art("fg3_sp_btn", 18f, 702f, 376f, 125f, ContentScale.FillBounds)
+        PressHit(36f, 722f, 340f, 86f, 43f, onClick = onStart)
     }
 }
 
@@ -173,26 +157,59 @@ fun FigmaStory(onDone: () -> Unit) {
 
     BackHandler(enabled = i > 0) { index = i - 1 }
 
-    // Листать историю свайпом: провёл пальцем влево или вправо — следующая страница.
-    // (Кнопка «→» внизу на телефонах уходит под системную панель навигации.)
+    // Нажатие в любом месте экрана — следующая страница (кнопки «→» и подсказки внизу больше нет).
+    // Свайп тоже листает: провёл пальцем влево или вправо — следующая страница.
     val next = { if (last) onDone() else index = i + 1 }
-    val swipe = Modifier.pointerInput(i) {
-        var dragged = 0f
-        var fired = false
-        detectHorizontalDragGestures(
-            onDragStart = { dragged = 0f; fired = false },
-            onHorizontalDrag = { change, amount ->
-                change.consume()
-                dragged += amount
-                if (!fired && kotlin.math.abs(dragged) > 60.dp.toPx()) {
-                    fired = true
-                    next()
+    val swipe = Modifier
+        .pointerInput(i) {
+            var dragged = 0f
+            var fired = false
+            detectHorizontalDragGestures(
+                onDragStart = { dragged = 0f; fired = false },
+                onHorizontalDrag = { change, amount ->
+                    change.consume()
+                    dragged += amount
+                    if (!fired && kotlin.math.abs(dragged) > 60.dp.toPx()) {
+                        fired = true
+                        next()
+                    }
                 }
-            }
-        )
-    }
+            )
+        }
+        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { next() }
 
-    DesignCanvas(modifier = swipe, background = { StoryBackground(frame) }) {
+    DesignCanvas(
+        modifier = swipe,
+        background = {
+            // Фон страницы плавно сменяется (перекрестным проявлением), а не мигает.
+            Crossfade(targetState = i, animationSpec = tween(MOTION_MS + 80), label = "storyBg") { idx ->
+                StoryBackground(storyFrames[idx.coerceIn(0, storyFrames.lastIndex)])
+            }
+        }
+    ) {
+        // Сами страницы выезжают: вперёд — справа, назад — слева.
+        AnimatedContent(
+            targetState = i,
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = { stepTransform() },
+            label = "storyPage"
+        ) { idx ->
+            StoryLayer(idx, pages.size)
+        }
+    }
+}
+
+/** Содержимое одной страницы истории: картинка, текст, точки и Монтик. Номер страницы — [idx]. */
+@Composable
+private fun DesignScope.StoryLayer(idx: Int, pageCount: Int) {
+    val pages = Story.pages
+    val frame = storyFrames[idx.coerceIn(0, storyFrames.lastIndex)]
+    val activeDot = when (idx) {
+        0 -> 0
+        pageCount - 1 -> 2
+        else -> 1
+    }
+    run {
         // Картинка истории — в координатах холста, как в макете: тогда Монтик стоит там же, где в Figma
         // (на набережной, а не в воде), даже если холст меньше экрана из-за панели навигации.
         if (frame.cropBg) {
@@ -205,7 +222,7 @@ fun FigmaStory(onDone: () -> Unit) {
         // Метка места: булавка, город и год.
         val pin = frame.pin
         val head = frame.head
-        val page = pages[i]
+        val page = pages[idx]
         if (pin != null) Art("fg_story_pin", pin.first, pin.second, 39f, 39f, ContentScale.Fit)
         if (head != null && page.header != null) {
             DText(page.header, head.first, head.second, 260f, 24f, softWrap = false)
@@ -270,15 +287,6 @@ fun FigmaStory(onDone: () -> Unit) {
             Art(charArt, char.x, charY, char.w, char.h, ContentScale.Fit)
         }
 
-        StoryNext(frame.nextX, frame.nextY - lift, frame.limeNext) { next() }
-        // Подсказка для ребёнка.
-        if (!last) {
-            DText(
-                "Листай → свайпом",
-                frame.dotsX - 150f, frame.dotsY - lift - 1f, 140f, 12f,
-                bold = false, color = Color.White, mono = false, align = TextAlign.End, softWrap = false
-            )
-        }
     }
 }
 
@@ -286,30 +294,18 @@ fun FigmaStory(onDone: () -> Unit) {
 @Composable
 private fun DesignScope.StoryDots(x: Float, y: Float, active: Int) {
     for (n in 0 until 3) {
+        // Активная точка плавно становится белой, соседние — тусклыми.
+        val dot by animateColorAsState(
+            if (n == active) Color.White else Color(0xCCD9D9D9),
+            animationSpec = tween(MOTION_MS),
+            label = "dot"
+        )
         Box(
             Modifier
                 .at(x + n * 25f, y, 13f, 13f)
                 .clip(CircleShape)
-                .background(if (n == active) Color.White else Color(0xCCD9D9D9))
+                .background(dot)
         )
-    }
-}
-
-/** Круглая кнопка «дальше» 50×50 со стрелкой 24×24. */
-@Composable
-private fun DesignScope.StoryNext(x: Float, y: Float, lime: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .at(x, y, 50f, 50f)
-            .shadow(d(3f), CircleShape)
-            .clip(CircleShape)
-            .background(if (lime) MontikColors.Lime else Color.White)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        ArtImage("fg_story_arrow", Modifier.size(d(24f)), ContentScale.Fit) {
-            Text("→", color = MontikColors.Ink, fontWeight = FontWeight.Bold, fontSize = fs(22f, false))
-        }
     }
 }
 
@@ -318,24 +314,11 @@ private fun DesignScope.StoryNext(x: Float, y: Float, lime: Boolean, onClick: ()
 @Composable
 fun FigmaReady(onGo: () -> Unit) {
     DesignCanvas(background = { Box(Modifier.fillMaxSize().background(MontikColors.Cream)) }) {
-        // Картинка целиком: заголовок, текст, росчерки и Монтик уже нарисованы в макете.
-        Art("fg_ready_bg", 0f, 35f, 412f, 787f, ContentScale.Crop)
-        Box(
-            Modifier
-                .at(44f, 774f, 323f, 73f)
-                .clip(RoundedCornerShape(d(36.5f)))
-                .background(MontikColors.Lime)
-                .clickable(onClick = onGo),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "Вперёд!",
-                color = MontikColors.Ink,
-                fontSize = fs(32f),
-                fontFamily = MontikFont,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        // Кадр «история (начать игру)» нового макета: заголовок, текст и Монтик нарисованы на картинке.
+        Art("fg3_ready_bg", 0f, 35f, 412f, 787f, ContentScale.FillBounds)
+        // Кнопка «Вперёд!» (image 455, 313×104).
+        Art("fg3_ready_btn", 49f, 735f, 313f, 104f, ContentScale.FillBounds)
+        PressHit(60f, 745f, 291f, 84f, 42f, onClick = onGo)
     }
 }
 
@@ -359,6 +342,5 @@ fun FigmaHome(vm: GameViewModel) {
         // Герой живёт в этой комнате, над нижней панелью. Нажми — ответит.
         TalkingMontik(vm, 96f, 396f, 220f, 220f, heroSize = 205f, bubbleX = 30f, bubbleY = 318f)
         HomeHud(vm, minutes)
-        InfoPanel(vm, kitchen = false)
     }
 }

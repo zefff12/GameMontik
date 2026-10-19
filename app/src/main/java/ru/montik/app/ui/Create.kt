@@ -46,6 +46,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
@@ -77,6 +79,11 @@ fun CreateScreen(vm: GameViewModel) {
         return
     }
     // Новый экран раскраски из макета (Frame 33) — во весь экран, точно по картинке.
+    // Ещё новее — «Профиль» из последнего макета: полянка, столбик красок, пять Монтиков.
+    if (ui is CreateUi.Idle && rememberHasArt("fg3_cr_bg", "fg3_cr_skins_plain")) {
+        NewCreationBoard(vm)
+        return
+    }
     if (ui is CreateUi.Idle && rememberHasArt("fg_paint_bg")) {
         FigmaColouringBoard(vm)
         return
@@ -174,7 +181,7 @@ private fun BuySkinDialog(vm: GameViewModel, offer: SkinOffer, onDone: () -> Uni
     val canPay = coins >= offer.price
     AlertDialog(
         onDismissRequest = onDone,
-        title = { Text("🔒 ${offer.title}") },
+        title = { NoDialogDim(); Text("🔒 ${offer.title}") },
         text = {
             Text(
                 if (canPay) {
@@ -646,12 +653,14 @@ private fun FigmaColouringBoard(vm: GameViewModel) {
             )
             // Платный Монтик: полупрозрачный, с замком и ценой.
             if (!open) {
+                // Замок — в верхней части круга, цена — по центру (раньше цена съезжала к низу).
                 Box(
-                    Modifier.at(cx - r, cy - r, 2 * r, 2 * r).clip(CircleShape).background(Color.White.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
+                    Modifier.at(cx - r, cy - r, 2 * r, 2 * r).clip(CircleShape).background(Color.White.copy(alpha = 0.5f))
+                        .padding(top = d(r * 0.25f)),
+                    contentAlignment = Alignment.TopCenter
                 ) { Text("🔒", fontSize = fs(16f, false)) }
                 Box(
-                    Modifier.at(cx - 24f, cy + r - 12f, 48f, 18f).clip(RoundedCornerShape(d(9f))).background(PaintGreen),
+                    Modifier.at(cx - 24f, cy - 9f, 48f, 18f).clip(RoundedCornerShape(d(9f))).background(PaintGreen),
                     contentAlignment = Alignment.Center
                 ) { Text("🪙${Skins.price(preset)}", color = Color.White, fontSize = fs(10f, false)) }
             }
@@ -665,7 +674,13 @@ private fun FigmaColouringBoard(vm: GameViewModel) {
         }
 
         // Кнопки макета: «Готово!» и список действий.
-        // «Нарисуй меня!» → кнопка галереи: ещё 20 готовых Монтиков из макета.
+        // «Нарисуй меня!» → кнопка галереи: сколько монет не хватает до следующего Монтика.
+        // Ближайший закрытый Монтик — среди заготовок на экране и картинок галереи.
+        // Сколько монет не хватает до следующего Монтика: считаем по платным закрытым (заготовки и картинки).
+        val lockedPrices = Skins.pictures.filter { it.price > 0 && !Skins.ownsPicture(vm.state, it) }.map { it.price } +
+            HeroPreset.PICKER.filter { Skins.price(it) > 0 && !vm.presetOwned(it) }.map { Skins.price(it) }
+        val canBuyNow = lockedPrices.any { it <= vm.state.coins }
+        val coinsLeft = lockedPrices.filter { it > vm.state.coins }.minOrNull()?.let { it - vm.state.coins }
         Box(
             Modifier.at(p(70f), p(1108f), p(700f), p(74f)).clip(RoundedCornerShape(d(22f)))
                 .background(Color(0xFFEAF7DF)).border(d(2f), PaintGreen, RoundedCornerShape(d(22f)))
@@ -673,7 +688,12 @@ private fun FigmaColouringBoard(vm: GameViewModel) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                if (skin != null) "✨ ${skin.title} · ещё Монтики ›" else "✨ Ещё ${Skins.pictures.size} Монтиков ›",
+                when {
+                    skin != null -> "✨ ${skin.title} · ещё Монтики ›"
+                    canBuyNow -> "✨ Хватает на новый Монтик ›"
+                    coinsLeft != null -> "✨ Ещё $coinsLeft ${coinWord(coinsLeft)} ›"
+                    else -> "✨ Ещё Монтики ›"
+                },
                 color = PaintTeal, fontSize = fs(15f, false), fontWeight = FontWeight.Bold
             )
         }
@@ -743,4 +763,133 @@ private fun SkinBuyOverlay(vm: GameViewModel, offer: SkinOffer, onDone: () -> Un
             }
         }
     }
+}
+
+// ───────────────────────── Создание Монтика: новый макет («Профиль») ─────────────────────────
+
+/** Пять Монтиков на картинке выбора (центры и радиусы кружков в координатах макета). */
+private val NEW_SKIN_ROW = listOf(
+    Triple(HeroPreset.WHITE, 57.4f to 512.9f, 36.9f),
+    Triple(HeroPreset.BLUE, 132.2f to 510.1f, 34.3f),
+    Triple(HeroPreset.PINK, 206.2f to 510.1f, 34.3f),
+    Triple(HeroPreset.BLACK, 279.3f to 510.1f, 34.3f),
+    Triple(HeroPreset.RAINBOW, 354.1f to 510.1f, 34.3f)
+)
+
+/** Середины кружков красок на столбике (x 367,6; радиус 19). */
+private val NEW_COLOR_Y = floatArrayOf(155.9f, 194.3f, 232.8f, 271.3f, 310.4f, 348.9f, 388.0f)
+
+@Composable
+private fun NewCreationBoard(vm: GameViewModel) {
+    var colour by rememberSaveable { mutableStateOf(Hero.PALETTE.first()) }
+    var offer by remember { mutableStateOf<SkinOffer?>(null) }
+    val masks = rememberPartMasks()
+    val skin = Skins.picture(vm.skinDraft)
+    val back = { if (vm.redrawing) vm.cancelRedraw() else vm.choosePreset(vm.heroPresetDraft) }
+
+    DesignCanvas {
+        // Полянка из макета (там же нарисован белый Монтик — раскрашиваемый слой лежит ровно на нём).
+        FrameArt("fg3_cr_bg", -30f, -94f, 454f, 1011f)
+        if (skin != null) {
+            ArtImage(skin.art, Modifier.at(39.9f, 196.6f, 313f, 313f), ContentScale.Fit) {}
+        } else {
+            Box(
+                Modifier
+                    .at(77.1f, 199.4f, 237.6f, 273.2f)
+                    .graphicsLayer { scaleX = 1.0205f }
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            val part = masks.partAt(offset.x, offset.y, size.width.toFloat(), size.height.toFloat())
+                            if (part != null) vm.paintHero(part, colour)
+                        }
+                    }
+            ) {
+                LineArtMontik(Modifier.fillMaxSize(), palette = heroPalette(vm.heroPresetDraft, vm.heroDraft))
+            }
+        }
+
+        // Заголовок «Монтик» с табличкой имени; пока имени нет — на табличке нарисовано «Имя».
+        Art("fg3_cr_title", 86f, 48f, 239f, 118f, ContentScale.FillBounds)
+        Box(Modifier.at(167f, 129f, 134f, 25f), contentAlignment = Alignment.Center) {
+            if (vm.heroName.isNotBlank()) {
+                Box(Modifier.matchParentSize().clip(RoundedCornerShape(d(12f))).background(Color(0xFFFCEFD6)))
+            }
+            BasicTextField(
+                value = vm.heroName,
+                onValueChange = { vm.changeHeroName(it.take(Hero.MAX_NAME)) },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.titleLarge.copy(
+                    color = Color(0xFF6B4A33),
+                    textAlign = TextAlign.Center,
+                    fontSize = fs(17f, false),
+                    fontWeight = FontWeight.Bold
+                ),
+                cursorBrush = SolidColor(Color(0xFF6B4A33)),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        Art("fg3_cr_back", -1f, 74f, 70f, 66f, ContentScale.FillBounds)
+        PressHit(8f, 80f, 52f, 52f, 26f, onClick = back)
+
+        // Краски: столбик из макета. Закрытые (с замком) открываются на 2-м и 3-м уровне.
+        Art("fg3_cr_colors", 260f, 118f, 216f, 323f, ContentScale.FillBounds)
+        val level = ru.montik.app.game.Progress.levelOf(vm.state.xp)
+        Hero.PALETTE.forEachIndexed { i, rgb ->
+            val cx = 367.6f
+            val cy = NEW_COLOR_Y[i]
+            val r = 19f
+            val open = vm.colourOwned(rgb)
+            // Открытая краска с нарисованным замком — рисуем чистый кружок поверх замка.
+            if (open && i >= 4) {
+                Box(
+                    Modifier.at(cx - r, cy - r, 2 * r, 2 * r).clip(CircleShape)
+                        .background(argbColor(rgb))
+                        .border(d(2.5f), Color(0xFF14246B), CircleShape)
+                )
+                Box(Modifier.at(cx - r * 0.55f, cy - r * 0.62f, r * 0.5f, r * 0.3f).clip(CircleShape).background(Color.White.copy(alpha = 0.55f)))
+            }
+            if (rgb == colour) {
+                Box(Modifier.at(cx - r - 4f, cy - r - 4f, 2 * r + 8f, 2 * r + 8f).clip(CircleShape).border(d(3.5f), PaintGreen, CircleShape))
+            }
+            Box(
+                Modifier.at(cx - r, cy - r, 2 * r, 2 * r).clip(CircleShape).clickable {
+                    when {
+                        open -> colour = rgb
+                        else -> vm.say("Эта краска откроется на ${Skins.colorUnlockLevel(rgb)} уровне. Сейчас уровень $level.")
+                    }
+                }
+            )
+        }
+
+        // «Кто твой Монтик?» — пять Монтиков из макета; выбранный — в зелёном кольце с галочкой.
+        Art("fg3_cr_skins_plain", 18f, 459f, 376f, 126f, ContentScale.FillBounds)
+        for ((preset, c, r) in NEW_SKIN_ROW) {
+            val (cx, cy) = c
+            val selected = skin == null && preset == vm.heroPresetDraft
+            if (selected) {
+                Box(
+                    Modifier.at(cx - r - 1f, cy - r - 1f, 2 * r + 2f, 2 * r + 2f).clip(CircleShape)
+                        .border(d(4f), Brush.verticalGradient(listOf(Color(0xFF5BE05B), Color(0xFF169A1C))), CircleShape)
+                )
+                ArtImage("fg3_cr_check", Modifier.at(cx + 25.4f * r / 36.9f - 13.5f, cy + 23f * r / 36.9f - 13.5f, 27f, 27f), ContentScale.Fit) {}
+            }
+            val open = vm.presetOwned(preset)
+            Box(
+                Modifier.at(cx - r, cy - r, 2 * r, 2 * r + 14f).clip(CircleShape).clickable {
+                    if (open) vm.choosePreset(preset)
+                    else offer = SkinOffer("Монтик «${preset.title}»", Skins.price(preset)) { vm.buyPreset(preset) }
+                }
+            )
+        }
+
+        // «Готово!» и три строки: случайные цвета, нарисовать самому, отмена.
+        Art("fg3_cr_done", 34f, 563f, 343f, 115f, ContentScale.FillBounds)
+        PressHit(91f, 593f, 228f, 58f, 29f) { vm.confirmColouring() }
+        Art("fg3_cr_menu", 60f, 653f, 292f, 151f, ContentScale.FillBounds)
+        PressHit(72f, 663f, 268f, 45f, 22f) { vm.randomColours() }
+        PressHit(72f, 715f, 268f, 45f, 22f) { vm.startDrawing() }
+        PressHit(72f, 766f, 268f, 38f, 19f, onClick = back)
+    }
+    offer?.let { o -> SkinBuyOverlay(vm, o) { offer = null } }
 }

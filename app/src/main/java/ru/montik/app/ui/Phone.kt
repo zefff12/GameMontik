@@ -1,5 +1,10 @@
 package ru.montik.app.ui
 
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,7 +56,7 @@ fun PhoneScreen(vm: GameViewModel) {
     val apps = listOf(
         PhoneApp("🗺", "Карта") { vm.goTo(Screen.Travel) },
         PhoneApp("💼", "Работа", if (vm.workBlocker != null) "!" else null) { vm.goTo(Screen.Work) },
-        PhoneApp("📈", "Прогресс") { vm.goTo(Screen.Diary) },
+        PhoneApp("📈", "Прогресс") { vm.goTo(Screen.Housing) },  // жильё и уровень (макет)
         PhoneApp("🏦", "Банк", if (s.debt > 0 || s.credits.isNotEmpty()) "долг" else null) { vm.goTo(Screen.Bank) },
         PhoneApp("🛍", "Магазин") { vm.goTo(Screen.Grocery) },
         PhoneApp("🎨", "Профиль") { vm.startRedraw() },
@@ -63,9 +68,73 @@ fun PhoneScreen(vm: GameViewModel) {
             else vm.say("🦝 Енот Сергеевич откроет рынок через ${Barter.INTERVAL_DAYS - (s.day - s.barterDay)} дн. Он пришлёт сообщение!")
         }
     )
+    // Новый телефон из макета: 4 столбца, плитки «Карта, Работа, Прогресс, Маркет, Банк, Магазин,
+    // Профиль, Рынок, Настройки, Будильник».
+    if (rememberHasArt("fg2_ph_map", "fg2_phone_bg")) {
+        val byLabel = apps.associateBy { it.label }
+        val market = PhoneApp("🛍", "Маркет") { vm.goTo(Screen.Market) }
+        val tiles = listOf(
+            "fg2_ph_map" to byLabel["Карта"], "fg2_ph_work" to byLabel["Работа"],
+            "fg2_ph_progress" to byLabel["Прогресс"], "fg2_ic_market" to market,
+            "fg2_ph_bank" to byLabel["Банк"], "fg2_ph_shop" to byLabel["Магазин"],
+            "fg2_ph_profile" to byLabel["Профиль"], "fg2_ic_rynok" to byLabel["Рынок"],
+            "fg2_ph_settings" to byLabel["Настройки"], "fg2_ph_alarm" to byLabel["Будильник"]
+        ).mapNotNull { (art, app) -> app?.let { art to it } }
+        NewPhone(vm, tiles)
+        return
+    }
     // Телефон из Figma, если плитки fg_phone_i1…i8 добавлены в проект; иначе — нарисованный.
     val names = Array(8) { "fg_phone_i${it + 1}" }
     if (rememberHasArt(*names)) FigmaPhone(vm, apps) else ClassicPhone(vm, apps)
+}
+
+/** Телефон нового макета: лаймовый экран, плитки-иконки выскакивают по очереди и «проседают» при нажатии. */
+@Composable
+private fun NewPhone(vm: GameViewModel, tiles: List<Pair<String, PhoneApp>>) {
+    DesignCanvas(background = {
+        Box(Modifier.fillMaxSize().background(Color(0xFFB4EE6E)))
+        ArtImage("fg2_phone_bg", Modifier.fillMaxSize(), ContentScale.Crop) {}
+    }) {
+        RoundBack(16f, 30f) { vm.back() }
+        Box(Modifier.at(230f, 32f, 168f, 44f), contentAlignment = Alignment.CenterEnd) { CoinPill(vm.state.coins) }
+        tiles.forEachIndexed { i, (art, app) ->
+            val col = i % 4
+            val row = i / 4
+            val x = 12f + col * 98f
+            val y = 110f + row * 118f
+            androidx.compose.runtime.key(app.label) {
+                val enter = rememberEnter(260 + i * 45)
+                val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val pressed by source.collectIsPressedAsState()
+                val press by androidx.compose.animation.core.animateFloatAsState(
+                    if (pressed) 0.8f else 1f,
+                    androidx.compose.animation.core.spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy),
+                    label = "tile"
+                )
+                Box(
+                    Modifier.at(x, y, 92f, 108f)
+                        .enterPop(enter)
+                        .graphicsLayer { alpha = press }
+                        .shadow(d(4f), RoundedCornerShape(d(14f)))
+                        .clip(RoundedCornerShape(d(14f)))
+                        .background(Color(0xFFF4F5EC))
+                        .clickable(interactionSource = source, indication = null, onClick = app.onOpen),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ArtImage(art, Modifier.fillMaxSize(), ContentScale.Fit) {}
+                    if (app.badge != null) {
+                        Surface(
+                            shape = MontikShapes.Chip,
+                            color = MontikColors.Bad,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                        ) {
+                            Text(app.badge, style = MaterialTheme.typography.labelMedium, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

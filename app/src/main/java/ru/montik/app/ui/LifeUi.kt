@@ -311,7 +311,11 @@ fun GoalsScreen(vm: GameViewModel) {
     val s = vm.state
     val goal = Goals.current(s)
     var withdrawAsk by rememberSaveable { mutableStateOf(0) }
-    ScreenScaffold("Копилка", vm, icon = "fg_ui_h_goals", footer = "fg_ui_foot_goals") {
+    // Копилка целиком из макета (кадр «Android Compact - 77»); диалог снятия остаётся прежним ниже.
+    if (rememberHasArt("fg_figma_piggy")) {
+        if (rememberHasArt("fg2_piggy")) NewPiggyScreen(vm) { withdrawAsk = minOf(10, s.piggy) }
+        else FigmaPiggyScreen(vm) { withdrawAsk = minOf(10, s.piggy) }
+    } else ScreenScaffold("Копилка", vm, icon = "fg_ui_h_goals", footer = "fg_ui_foot_goals") {
         MontikCard(color = Page.Mint) {
             Text(
                 "Выбери цель и откладывай понемногу. Копилка — отдельно от кошелька: эти деньги не тратятся случайно.",
@@ -412,7 +416,7 @@ fun GoalsScreen(vm: GameViewModel) {
         AlertDialog(
             onDismissRequest = { withdrawAsk = 0 },
             containerColor = MontikColors.Surface,
-            title = { Text("Снять из копилки?") },
+            title = { NoDialogDim(); Text("Снять из копилки?") },
             text = {
                 Column {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -455,6 +459,11 @@ fun TasksScreen(vm: GameViewModel) {
     val open = openId?.let { Tasks.byId(it) }
     if (open != null) {
         TaskPlayer(vm, open) { openId = null }
+        return
+    }
+    // Список заданий по новому макету (Frame 59).
+    if (rememberHasArt("fg2_tasks")) {
+        NewTasksList(vm) { openId = it.id }
         return
     }
     ScreenScaffold("Задания", vm, icon = "fg_ui_h_tasks", footer = "fg_ui_foot_tasks") {
@@ -653,6 +662,11 @@ private fun CountPlayer(task: FinTask, attempt: Int, onDone: (TaskOutcome?) -> U
 
 @Composable
 fun HousingScreen(vm: GameViewModel) {
+    // Экран «Жильё и уровень» целиком из макета (кадр «Frame 47»).
+    if (rememberHasArt("fg_figma_housing")) {
+        if (rememberHasArt("fg3_house_l1", "fg3_house2_bg")) NewHousingScreen(vm) else FigmaHousingScreen(vm)
+        return
+    }
     val s = vm.state
     val home = s.home
     ScreenScaffold("Жильё и уровень", vm, icon = "fg_ui_h_housing", footer = "fg_ui_foot_housing") {

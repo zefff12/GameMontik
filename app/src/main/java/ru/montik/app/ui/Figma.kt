@@ -1,6 +1,16 @@
 package ru.montik.app.ui
 
+import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -62,7 +72,10 @@ class DesignScope(
     val u: Float,
     private val density: Density,
     /** Сколько (в единицах макета) экран шире холста с каждой стороны. */
-    val bleed: Float = 0f
+    val bleed: Float = 0f,
+    /** Сколько экрана (в единицах макета) остаётся над холстом и под ним (вместе с панелью навигации). */
+    val padTop: Float = 0f,
+    val padBottom: Float = 0f
 ) {
     /** Число из Figma → размер в dp. */
     fun d(v: Float): Dp = (v * u).dp
@@ -123,7 +136,10 @@ fun DesignCanvas(
                 if (cover / fit <= 1.06f) cover else fit
             }
             val bleed = ((maxWidth.value / u - DESIGN_W) / 2f).coerceAtLeast(0f)
-            val scope = remember(u, density, bleed) { DesignScope(u, density, bleed) }
+            val gapV = ((maxHeight.value / u - DESIGN_H) / 2f).coerceAtLeast(0f)
+            val padTop = gapV
+            val padBottom = gapV + navBottom.value / u
+            val scope = remember(u, density, bleed, padTop, padBottom) { DesignScope(u, density, bleed, padTop, padBottom) }
             Box(Modifier.requiredSize((DESIGN_W * u).dp, (DESIGN_H * u).dp)) {
                 scope.content()
             }
@@ -155,6 +171,89 @@ fun DesignScope.Art(
     // на своих местах относительно кнопок поверх неё.
     val full = bleed > 0f && x <= 0.5f && x + w >= DESIGN_W - 0.5f
     ArtImage(name, Modifier.at(x, y, w, h), if (full) ContentScale.FillBounds else scale) {}
+}
+
+/**
+ * Кадр макета (по умолчанию 412×917 в точке 0, 0; можно задать свою рамку — как у фона в Figma,
+ * например 0, −10, 427×938) строго в координатах холста — живые элементы поверх совпадают с ним
+ * пиксель в пиксель. Если экран шире или выше макета, поля вокруг заполняются зеркальным
+ * продолжением самой картинки — без второго фона, без растяжения и без швов.
+ */
+@Composable
+fun DesignScope.FrameArt(name: String, x: Float = 0f, y: Float = 0f, w: Float = DESIGN_W, h: Float = DESIGN_H) {
+    val context = LocalContext.current
+    val resId = remember(name) { context.resources.getIdentifier(name, "drawable", context.packageName) }
+    if (resId == 0) return
+    val image = ImageBitmap.imageResource(resId)
+    // Область экрана в единицах макета: от −bleed до 412 + bleed по ширине, от −padTop до 917 + padBottom по высоте.
+    val sx0 = -bleed
+    val sy0 = -padTop
+    val sw = DESIGN_W + 2f * bleed
+    val sh = DESIGN_H + padTop + padBottom
+    Box(
+        Modifier.absoluteOffset(d(sx0), d(sy0))
+            .wrapContentSize(Alignment.TopStart, unbounded = true)
+            .requiredSize(d(sw), d(sh))
+            .drawBehind {
+                val k = size.width / sw
+                val iw = image.width
+                val ih = image.height
+                // Рамка картинки в пикселях этого слоя.
+                val rx = (x - sx0) * k
+                val ry = (y - sy0) * k
+                val rw = w * k
+                val rh = h * k
+                val px = iw / rw
+                val py = ih / rh
+                fun part(srcX: Int, srcY: Int, srcW: Int, srcH: Int, dx: Float, dy: Float, dw: Float, dh: Float, flipX: Boolean, flipY: Boolean) {
+                    if (srcW <= 0 || srcH <= 0 || dw <= 0.5f || dh <= 0.5f) return
+                    withTransform({
+                        translate(dx + if (flipX) dw else 0f, dy + if (flipY) dh else 0f)
+                        scale(if (flipX) -1f else 1f, if (flipY) -1f else 1f, pivot = Offset.Zero)
+                    }) {
+                        drawImage(
+                            image, IntOffset(srcX, srcY), IntSize(srcW, srcH),
+                            dstOffset = IntOffset.Zero,
+                            dstSize = IntSize(dw.roundToInt().coerceAtLeast(1), dh.roundToInt().coerceAtLeast(1)),
+                            filterQuality = FilterQuality.Medium
+                        )
+                    }
+                }
+                // Поля: слева, справа, сверху, снизу (в пикселях слоя), не больше самой картинки.
+                val left = rx.coerceIn(0f, rw)
+                val right = (size.width - rx - rw).coerceIn(0f, rw)
+                val top = ry.coerceIn(0f, rh)
+                val bottom = (size.height - ry - rh).coerceIn(0f, rh)
+                val lw = (left * px).roundToInt().coerceIn(0, iw)
+                val rwp = (right * px).roundToInt().coerceIn(0, iw)
+                val th = (top * py).roundToInt().coerceIn(0, ih)
+                val bh = (bottom * py).roundToInt().coerceIn(0, ih)
+                // Три ряда: верхнее поле (отражение по вертикали), сама картинка, нижнее поле.
+                val rows = listOf(
+                    Triple(0, th, Pair(ry - top, top)) to true,
+                    Triple(0, ih, Pair(ry, rh)) to false,
+                    Triple(ih - bh, bh, Pair(ry + rh, bottom)) to true
+                )
+                for ((row, flipY) in rows) {
+                    val (srcY, srcH, dst) = row
+                    val (dy, dh) = dst
+                    part(0, srcY, iw, srcH, rx, dy, rw, dh, false, flipY)
+                    part(0, srcY, lw, srcH, rx - left, dy, left, dh, true, flipY)
+                    part(iw - rwp, srcY, rwp, srcH, rx + rw, dy, right, dh, true, flipY)
+                }
+            }
+    )
+}
+
+/** Затемнение на весь экран (вместе с полями вокруг холста) — под карточками и окнами. */
+@Composable
+fun DesignScope.ScreenDim(alpha: Float) {
+    Box(
+        Modifier.absoluteOffset(d(-bleed), d(-padTop))
+            .wrapContentSize(Alignment.TopStart, unbounded = true)
+            .requiredSize(d(DESIGN_W + 2f * bleed), d(DESIGN_H + padTop + padBottom))
+            .background(Color.Black.copy(alpha = alpha))
+    )
 }
 
 /** Невидимая область нажатия в координатах макета. */

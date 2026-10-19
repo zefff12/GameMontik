@@ -1,5 +1,8 @@
 package ru.montik.app.ui
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.border
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
@@ -59,6 +62,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -285,6 +289,8 @@ fun MontikView(
         } else {
             MontikBunny(Modifier.fillMaxSize(), palette = palette)
         }
+        // Вещи из маркета поверх героя: шапка, очки, галстук, тапочки.
+        OutfitLayer(state, boxSize, picture = useArt)
         if (!still) {
             state.worn[Slot.HEAD]?.let { Catalog.clothing(it) }?.let {
                 Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.TopCenter))
@@ -343,33 +349,40 @@ fun ScenarioCard(scenario: Scenario, state: GameState, onChoose: (Int) -> Unit) 
 private fun InfoDialog(
     title: String,
     onDismiss: () -> Unit,
-    buttonText: String = "Понятно",
+    buttonText: String = "Понятно!",
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MontikColors.Surface,
-        shape = MontikShapes.Card,
-        title = { Text(title, style = MaterialTheme.typography.titleLarge) },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState()), content = content)
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(buttonText, style = MaterialTheme.typography.labelLarge, color = MontikColors.Ink)
+    // Окно в стиле макета: светлая карточка с зелёной рамкой, без серого затемнения, появляется с «прыжком».
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        NoDialogDim()
+        val enter = rememberEnter()
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier
+                    .padding(horizontal = 18.dp, vertical = 24.dp)
+                    .widthIn(max = 420.dp)
+                    .fillMaxWidth()
+                    .enterPop(enter)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color.White)
+                    .border(3.dp, Color(0xFF7DB46C), RoundedCornerShape(28.dp))
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            ) {
+                Box(
+                    Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFBFE6AC))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text(title, color = MontikColors.Ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                }
+                Spacer(Modifier.height(12.dp))
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), content = content)
+                Spacer(Modifier.height(14.dp))
+                BigButton(buttonText, onClick = onDismiss)
             }
         }
-    )
-}
-
-@Composable
-fun LessonDialog(lesson: Lesson, onDismiss: () -> Unit) {
-    InfoDialog(title = "${lesson.emoji} Монтик объясняет", onDismiss = onDismiss) {
-        Text(lesson.title, style = MaterialTheme.typography.titleMedium, color = MontikColors.Ink)
-        Spacer(Modifier.height(8.dp))
-        Text(lesson.text, style = MaterialTheme.typography.bodyLarge)
     }
 }
+
 
 @Composable
 fun PayslipDialog(ui: ShiftUi, onDismiss: () -> Unit) {
@@ -592,4 +605,41 @@ fun ToastBanner(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
 @Composable
 fun FullBackground(content: @Composable () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(MontikColors.Cream)) { content() }
+}
+
+/**
+ * Надетые вещи маркета поверх Монтика. Герой нарисован «по размеру» в квадрате [boxSize]
+ * (по ширине он чуть уже — около 88%), поэтому доли вещи пересчитываются в эту рамку.
+ * Новая вещь появляется с «прыжком».
+ */
+@Composable
+fun OutfitLayer(state: GameState, boxSize: Dp, picture: Boolean = false) {
+    // Порядок слоёв: тапочки, галстук, очки, головной убор — верхние вещи не прячутся под нижними.
+    val order = listOf(ru.montik.app.game.WearSlot.FEET, ru.montik.app.game.WearSlot.NECK, ru.montik.app.game.WearSlot.EYES, ru.montik.app.game.WearSlot.HEAD)
+    val worn = ru.montik.app.game.Market.worn(state).sortedBy { order.indexOf(it.slot) }
+    if (worn.isEmpty()) return
+    // Рамки вещей заданы для штрихового Монтика (зайка в квадрате: x 0,065…0,935, y 0,005…0,995).
+    // Готовые Монтики-картинки 360×360 чуть меньше в квадрате (x 0,117…0,881, y 0,014…0,989) —
+    // переносим рамку вещи на них, чтобы она сидела на тех же местах.
+    fun mx(v: Float) = if (picture) 0.117f + (v - 0.065f) / 0.87f * 0.764f else v
+    fun my(v: Float) = if (picture) 0.014f + (v - 0.005f) / 0.99f * 0.975f else v
+    fun mw(v: Float) = if (picture) v / 0.87f * 0.764f else v
+    fun mh(v: Float) = if (picture) v / 0.99f * 0.975f else v
+    Box(Modifier.size(boxSize)) {
+        for (item in worn) {
+            androidx.compose.runtime.key(item.id) {
+                // Вещь надевается плавно — проявляется на месте, без «подпрыгивания».
+                val shown = remember { androidx.compose.animation.core.Animatable(0f) }
+                androidx.compose.runtime.LaunchedEffect(Unit) { shown.animateTo(1f, tween(260)) }
+                Box(
+                    Modifier
+                        .offset(x = boxSize * mx(item.x), y = boxSize * my(item.y))
+                        .size(boxSize * mw(item.w), boxSize * mh(item.h))
+                        .graphicsLayer { alpha = shown.value }
+                ) {
+                    ArtImage(item.art, Modifier.fillMaxSize(), ContentScale.FillBounds) {}
+                }
+            }
+        }
+    }
 }

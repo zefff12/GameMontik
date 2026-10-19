@@ -12,12 +12,14 @@ object Skins {
 
     /** Цена заготовки (0 — бесплатно). */
     fun price(preset: HeroPreset): Int = when (preset) {
-        HeroPreset.WHITE, HeroPreset.BLUE, HeroPreset.GREEN -> 0
-        HeroPreset.PINK -> 60
+        // Цены — как на картинке выбора в макете «Профиль».
+        HeroPreset.WHITE, HeroPreset.GREEN -> 0
+        HeroPreset.BLUE -> 60
+        HeroPreset.PINK -> 120
         HeroPreset.ORANGE -> 60
         HeroPreset.PURPLE -> 80
-        HeroPreset.BLACK -> 120
-        HeroPreset.RAINBOW -> 150
+        HeroPreset.BLACK -> 150
+        HeroPreset.RAINBOW -> 80
     }
 
     fun owns(state: GameState, preset: HeroPreset): Boolean = price(preset) == 0 || preset.id in state.ownedSkins
@@ -77,7 +79,15 @@ object Skins {
     /** Цвет шёрстки героя: им окрашивается белый «человечек» в сценах (банк, холодильник, касса…). */
     fun tint(state: GameState): Int = picture(state.heroSkin)?.tint ?: state.heroColor(HeroPart.FUR)
 
-    fun ownsColor(state: GameState, rgb: Int): Boolean = colorPrice(rgb) == 0 || colorKey(rgb) in state.ownedSkins
+    /** С какого уровня краска открывается сама (макет: фиолетовая — со 2-го, красная и чёрная — с 3-го). */
+    fun colorUnlockLevel(rgb: Int): Int = when (Hero.PALETTE.indexOf(rgb and 0xFFFFFF)) {
+        4 -> 2
+        5, 6 -> 3
+        else -> 1
+    }
+
+    fun ownsColor(state: GameState, rgb: Int): Boolean =
+        colorPrice(rgb) == 0 || colorKey(rgb) in state.ownedSkins || Progress.levelOf(state.xp) >= colorUnlockLevel(rgb)
 
     /** Купить заготовку Монтика. */
     fun buy(state: GameState, preset: HeroPreset): Outcome =

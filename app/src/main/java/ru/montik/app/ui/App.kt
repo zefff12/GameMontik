@@ -1,6 +1,7 @@
 package ru.montik.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -34,6 +35,7 @@ import ru.montik.app.game.Advice
 import ru.montik.app.game.Barter
 import ru.montik.app.game.BusinessEngine
 import ru.montik.app.game.Scenario
+import ru.montik.app.game.Scenarios
 
 /**
  * Корень приложения: вступление → «Нарисуй Монтика» → игра.
@@ -49,6 +51,10 @@ fun MontikApp(vm: GameViewModel = viewModel()) {
         else -> GameHost(vm)
     }
 }
+
+/** Ключи сцены: сон и пробуждение — не экраны, поэтому у них свои метки. */
+private object SceneSleep
+private object SceneWake
 
 /** Экран создания героя и запуск камеры / галереи. */
 @Composable
@@ -66,38 +72,53 @@ private fun GameHost(vm: GameViewModel) {
     BackHandler(enabled = vm.screen != Screen.Home) { vm.back() }
 
     Box(Modifier.fillMaxSize()) {
+        // Экран меняется плавно: новый проявляется и чуть вырастает, старый тает.
+        // Ключ — сон, пробуждение или сам экран; меняется только ключ, поэтому переход срабатывает один раз.
         val wake = vm.wake
-        when {
-            // Монтик спит: таймер сна, а потом будильник. Пока он спит, остальная игра ждёт.
-            vm.state.sleep != null -> SleepFlow(vm)
-            // Только что проснулся: стоит возле кровати, показываем итоги сна.
-            wake != null -> WakeScreen(vm, wake)
-            else -> when (vm.screen) {
-                // В путешествии Монтик не дома: вместо квартиры — экран поездки.
-                Screen.Home -> if (vm.state.trip != null) TripHomeScreen(vm) else HomeScreen(vm)
-                Screen.Kitchen -> KitchenScreen(vm)
-                Screen.Budget -> BudgetScreen(vm)
-                Screen.Goals -> GoalsScreen(vm)
-                Screen.Tasks -> TasksScreen(vm)
-                Screen.Housing -> HousingScreen(vm)
-                Screen.Glossary -> GlossaryScreen(vm)
-                Screen.Phone -> PhoneScreen(vm)
-                Screen.Work -> WorkScreen(vm)
-                Screen.Store -> StoreScreen(vm)
-                Screen.Business -> BusinessScreen(vm)
-                Screen.Shop -> ShopScreen(vm)
-                Screen.Travel -> TravelScreen(vm)
-                Screen.Sleep -> SleepScreen(vm)
-                Screen.Cushion -> CushionScreen(vm)
-                Screen.Bank -> BankScreen(vm)
-                Screen.Diary -> DiaryScreen(vm)
-                Screen.Parent -> ParentScreen(vm)
-                Screen.Grocery -> GroceryScreen(vm)
-                Screen.Fridge -> FridgeScreen(vm)
-                Screen.FridgeDoor -> FridgeDoorScreen(vm)
-                Screen.BankJob -> BankJobScreen(vm)
-                Screen.Console -> ConsoleScreen(vm)
-                Screen.Barter -> BarterScreen(vm)
+        val scene: Any = when {
+            vm.state.sleep != null -> SceneSleep
+            wake != null -> SceneWake
+            else -> vm.screen
+        }
+        AnimatedContent(
+            targetState = scene,
+            transitionSpec = { sceneFade() },
+            label = "scene"
+        ) { key ->
+            when (key) {
+                // Монтик спит: таймер сна, а потом будильник. Пока он спит, остальная игра ждёт.
+                SceneSleep -> SleepFlow(vm)
+                // Только что проснулся: стоит возле кровати, показываем итоги сна.
+                SceneWake -> vm.wake?.let { WakeScreen(vm, it) }
+                is Screen -> when (key) {
+                    // В путешествии Монтик не дома: вместо квартиры — экран поездки.
+                    Screen.Home -> if (vm.state.trip != null) TripHomeScreen(vm) else HomeScreen(vm)
+                    Screen.Kitchen -> KitchenScreen(vm)
+                    Screen.Budget -> BudgetScreen(vm)
+                    Screen.Wallet -> NewWalletScreen(vm)
+                    Screen.Goals -> GoalsScreen(vm)
+                    Screen.Tasks -> TasksScreen(vm)
+                    Screen.Housing -> HousingScreen(vm)
+                    Screen.Glossary -> GlossaryScreen(vm)
+                    Screen.Phone -> PhoneScreen(vm)
+                    Screen.Work -> WorkScreen(vm)
+                    Screen.Store -> StoreScreen(vm)
+                    Screen.Business -> BusinessScreen(vm)
+                    Screen.Shop -> ShopScreen(vm)
+                    Screen.Travel -> TravelScreen(vm)
+                    Screen.Sleep -> SleepScreen(vm)
+                    Screen.Cushion -> CushionScreen(vm)
+                    Screen.Bank -> BankScreen(vm)
+                    Screen.Diary -> DiaryScreen(vm)
+                    Screen.Parent -> ParentScreen(vm)
+                    Screen.Grocery -> GroceryScreen(vm)
+                    Screen.Fridge -> FridgeScreen(vm)
+                    Screen.FridgeDoor -> FridgeDoorScreen(vm)
+                    Screen.BankJob -> BankJobScreen(vm)
+                    Screen.Console -> ConsoleScreen(vm)
+                    Screen.Barter -> BarterScreen(vm)
+                    Screen.Market -> MarketScreen(vm)
+                }
             }
         }
 
@@ -136,17 +157,22 @@ private fun Overlays(vm: GameViewModel) {
     val onMain = vm.screen == Screen.Home || vm.screen == Screen.Kitchen
 
     when {
+        // Итоги первого кошелька — окна из макета (обед, игрушка, рюкзак) с настоящими суммами.
+        scenarioResult != null && scenarioResult.scenario.id == Scenarios.INTRO ->
+            NewWalletResult(scenarioResult, s.coins) { vm.dismissScenarioResult() }
         scenarioResult != null -> ScenarioResultDialog(scenarioResult) { vm.dismissScenarioResult() }
-        shiftResult != null -> PayslipDialog(shiftResult) { vm.dismissShiftResult() }
-        medal != null -> MedalDialog(medal) { vm.dismissMedal() }
-        lesson != null -> LessonDialog(lesson) { vm.dismissLesson() }
+        shiftResult != null -> NewPayslipPopup(shiftResult) { vm.dismissShiftResult() }
+        medal != null -> NewMedalPopup(medal) { vm.dismissMedal() }
+        lesson != null -> NewLessonPopup(lesson) { vm.dismissLesson() }
         pending != null -> PendingScenarioOverlay(vm, pending)
         // Знакомство «три решения» — сразу после первой ситуации; потом — по кнопке «?».
         vm.helpOpen || !s.helpSeen -> HelpDialog(vm)
+        // Знакомство по шагам — на главном экране, пока не пройдено (шаги хранятся в состоянии игры).
+        onMain && vm.screen == Screen.Home && s.tourStep < TOUR_STEPS.size -> FirstRunTour(vm)
         period != null -> PeriodSummaryDialog(vm, period)
-        levelUp != null -> LevelUpOverlay(vm, levelUp)
+        levelUp != null -> NewLevelPopup(vm, levelUp)
         onMain && s.parentNoteNew -> ParentNoteOverlay(vm)
-        onMain && vm.tipDue -> TipOverlay(vm, Advice.forToday(s))
+        onMain && vm.tipDue -> Advice.forToday(s).let { tip -> NewTipPopup(tip) { vm.dismissTip(tip) } }
         ad != null && vm.adVisible -> AdOverlay(vm, ad)
         BusinessEngine.offerPending(s) -> BusinessOfferDialog(vm)
         // Раз в 10 игровых дней: сообщение от енота Сергеевича — сходить на рынок.
@@ -161,10 +187,14 @@ private fun Overlays(vm: GameViewModel) {
 @Composable
 private fun PendingScenarioOverlay(vm: GameViewModel, scenario: Scenario) {
     BackHandler(enabled = true) { }
+    // «Первый кошелёк Монтика» — окно из нового макета: три варианта — кнопки из картинки.
+    if (scenario.id == Scenarios.INTRO) {
+        NewWalletPopup(scenario) { i -> vm.choose(scenario.id, i) }
+        return
+    }
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.55f))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { },
         contentAlignment = Alignment.Center
     ) {

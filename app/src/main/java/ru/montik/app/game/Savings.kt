@@ -163,6 +163,12 @@ object Goals {
     }
 
     /** Цель накоплена: потратить копилку на неё (поездка начинается, вещь покупается). */
+    /** Вещь (приставка), на которую уже накоплено, выдаётся сразу — без лишнего нажатия. */
+    fun autoReachDue(state: GameState): Boolean {
+        val goal = current(state) ?: return false
+        return goal.id == ConsoleGame.GOAL_ID && state.piggy >= goal.cost
+    }
+
     fun reach(state: GameState): Outcome {
         val goal = current(state) ?: return GameEngine.fail(state, "Сначала выбери цель.")
         if (state.piggy < goal.cost) return GameEngine.fail(state, "В копилке ${state.piggy} из ${goal.cost}: осталось ${goal.cost - state.piggy}.")

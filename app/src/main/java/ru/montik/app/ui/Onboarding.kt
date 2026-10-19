@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -186,10 +187,13 @@ fun OnboardingFlow(onFinished: () -> Unit) {
     // Если в проект добавлены иллюстрации из Figma (fg_*), показываем экраны точно по макету,
     // иначе — прежние нарисованные экраны.
     val figma = rememberHasArt("fg_splash_bg", "fg_story2_bg", "fg_ready_bg")
-    when (step) {
-        0 -> if (figma) FigmaSplash(onStart = { step = 1 }) else SplashScreen(onStart = { step = 1 })
-        1 -> if (figma) FigmaStory(onDone = { step = 2 }) else StoryScreen(onDone = { step = 2 })
-        else -> if (figma) FigmaReady(onGo = onFinished) else ReadyScreen(onGo = onFinished)
+    // Заставка → история → «Готов начать?» — экраны сменяют друг друга сдвигом вперёд.
+    AnimatedContent(targetState = step, transitionSpec = { stepTransform() }, label = "onboarding") { current ->
+        when (current) {
+            0 -> if (figma) FigmaSplash(onStart = { step = 1 }) else SplashScreen(onStart = { step = 1 })
+            1 -> if (figma) FigmaStory(onDone = { step = 2 }) else StoryScreen(onDone = { step = 2 })
+            else -> if (figma) FigmaReady(onGo = onFinished) else ReadyScreen(onGo = onFinished)
+        }
     }
 }
 

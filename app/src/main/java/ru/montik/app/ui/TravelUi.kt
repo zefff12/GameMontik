@@ -88,7 +88,11 @@ fun TravelScreen(vm: GameViewModel) {
     val dest = Destinations.byId(trip.destinationId) ?: return
     when (trip.phase) {
         TripPhase.FLY_OUT -> FlightScreen(vm, dest, home = false)
-        TripPhase.CITY -> CityWalkScreen(vm, dest)
+        TripPhase.CITY -> {
+            // При приезде — задание города (где открыть кофейню и т. п.), потом прогулка.
+            val task = ru.montik.app.game.CityTasks.due(vm.state)
+            if (task != null && hasCityTask(task.city)) CityTaskScreen(vm, task) else CityWalkScreen(vm, dest)
+        }
         TripPhase.CONFERENCE -> ConferenceScreen(vm, dest)
         TripPhase.FLY_HOME -> {
             // Сначала — итог конференции, потом самолёт домой.
@@ -110,6 +114,16 @@ private fun TravelListScreen(vm: GameViewModel) {
     // Какой город выбран для кнопки «Купить билет» внизу: первый доступный.
     var picked by rememberSaveable {
         mutableStateOf(Destinations.all.firstOrNull { GameEngine.destinationStatus(s, it) == null && it.id !in s.completedTrips }?.id)
+    }
+    // Карта путешествий из нового макета: «>» сразу отправляет в путь.
+    if (rememberHasArt("fg3_map_bg", "fg3_map_i620")) {
+        NewTravelMap(vm)
+        return
+    }
+    // Список городов целиком из макета (кадр «Frame 48»).
+    if (rememberHasArt("fg_figma_travel")) {
+        FigmaTravelList(vm, picked) { picked = it }
+        return
     }
     val chosen = picked?.let { Destinations.byId(it) }
     DesignCanvas(background = {

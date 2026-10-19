@@ -268,7 +268,8 @@ class GameEngineTest {
         s = GameEngine.depositToBank(s, 50).state
         s = GameEngine.startTrip(s, "moscow").state
         s = GameEngine.sleep(s, SleepPlace.CABIN).state
-        assertTrue(s.deposit > 50)
+        assertEquals(50, s.deposit)
+        assertEquals(1, s.depositDays)                          // неделя на вкладе идёт
         assertTrue(s.tasksCorrect > 0)
         val text = StateCodec.encode(s)
         val back = StateCodec.decode(text)
@@ -277,7 +278,7 @@ class GameEngineTest {
     }
 
     @Test
-    fun bankPaysInterestOnlyForAFullDay() {
+    fun bankAddsFivePercentEveryWeek() {
         var s = started().copy(coins = 200)
         assertFalse(GameEngine.depositToBank(s, Rules.MIN_DEPOSIT - 1).ok)   // слишком мало
         assertFalse(GameEngine.depositToBank(s, 500).ok)                     // больше, чем есть
@@ -285,18 +286,25 @@ class GameEngineTest {
         s = GameEngine.depositToBank(s, 100).state
         assertEquals(100, s.deposit)
         assertEquals(100, s.coins)
-        assertEquals(10, GameEngine.dailyInterest(s))
+        assertEquals(5, GameEngine.weeklyInterest(s))
         assertTrue(Medals.DEPOSIT_MADE in s.milestones)
 
-        val slept = GameEngine.sleep(s, SleepPlace.BENCH).state
-        assertEquals(110, slept.deposit)
+        // Шесть дней — без процентов, на седьмой вклад вырастает на 5%.
+        var t = s
+        repeat(6) { t = GameEngine.sleep(t.copy(energy = 100, food = 100, water = 100), SleepPlace.BENCH).state }
+        assertEquals(100, t.deposit)
+        assertEquals(1, GameEngine.daysToInterest(t))
+        t = GameEngine.sleep(t.copy(energy = 100, food = 100, water = 100), SleepPlace.BENCH).state
+        assertEquals(105, t.deposit)
+        assertEquals(0, t.depositDays)
 
-        // Если забрать вклад до конца дня, процентов не будет.
+        // Если забрать вклад, счётчик недели обнуляется.
         val early = GameEngine.withdrawFromBank(s, 100).state
         assertEquals(0, early.deposit)
         assertEquals(200, early.coins)
         assertEquals(0, GameEngine.sleep(early, SleepPlace.BENCH).state.deposit)
     }
+
 
     @Test
     fun loanIsReturnedWithOverpayAndBlocksDeposits() {
@@ -326,14 +334,15 @@ class GameEngineTest {
     fun sochiIsTheLastTripAndRestoresStrength() {
         val sochi = Destinations.byId("sochi")!!
         assertEquals(500, sochi.ticket)
-        assertEquals("nn", sochi.requires)
+        // Нижний Новгород — родной город Монтика, на карте его нет: Сочи открывается после Петербурга.
+        assertEquals("spb", sochi.requires)
         assertEquals(sochi.id, Destinations.all.last().id)
 
         // Без поездки в Петербург Сочи закрыт, даже если монет хватает.
         var s = started().copy(coins = 2000)
         assertNotNull(GameEngine.destinationStatus(s, sochi))
 
-        s = s.copy(completedTrips = setOf("moscow", "kazan", "spb", "nn"), energy = 20, food = 20, water = 20)
+        s = s.copy(completedTrips = setOf("moscow", "kazan", "spb"), energy = 20, food = 20, water = 20)
         assertNull(GameEngine.destinationStatus(s, sochi))
         s = GameEngine.startTrip(s, "sochi").state
         assertEquals(1500, s.coins)

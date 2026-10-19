@@ -1076,7 +1076,7 @@ object Destinations {
             intro = "Бонусная поездка: море, пляж и настоящий отдых! Билет — 500 монет, это самая крупная цель в игре. " +
                 "Копить придётся долго, зато Монтик вернётся полным сил.",
             stops = listOf("sochi_return", "sochi_icecream", "sochi_gift"),
-            requires = "nn",
+            requires = "spb",
             restful = true,
             toName = "Сочи", flightMinutes = 135,
             conference = "Развитие туристического бизнеса",

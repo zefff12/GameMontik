@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.montik.app.data.DrawStroke
 import ru.montik.app.data.DrawingExport
+import ru.montik.app.data.PaintArt
 import ru.montik.app.data.Storage
 import ru.montik.app.data.TrustedClock
 import ru.montik.app.game.Ads
@@ -67,7 +68,11 @@ enum class Screen {
     /** Закрытый холодильник с магнитами из поездок (кадр Frame 38). */
     FridgeDoor,
     /** Енот на рынке: учим справедливому обмену. */
-    Barter
+    Barter,
+    /** Маркет: радости, одежда и гардероб Монтика. */
+    Market,
+    /** Кошелёк: копилка, подушка безопасности, план бюджета. */
+    Wallet
 }
 
 /** Состояние экрана «Нарисуй Монтика». */
@@ -181,13 +186,34 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     // ───────────────────────── Навигация ─────────────────────────
 
+    /** Экран, с которого открыли текущий: нужен, чтобы «назад» возвращал в магазин из монеток. */
+    private var fromScreen: Screen? = null
+
     fun goTo(target: Screen) {
+        fromScreen = screen
         screen = target
         if (target != Screen.Parent) parentUnlocked = false
         if (target != Screen.Work) activeShift = null
     }
 
-    fun back() = goTo(Screen.Home)
+    /**
+     * «Назад»: из приложения телефона — обратно в телефон, из телефона — на главный экран.
+     * Остальные экраны (кухня, холодильник, сон из комнаты) возвращают домой, как и раньше.
+     */
+    fun back() = goTo(
+        when (screen) {
+            // «Монетки» открыты из магазина продуктов — назад возвращаем в магазин.
+            Screen.Work -> if (fromScreen == Screen.Grocery) Screen.Grocery else Screen.Phone
+            Screen.Phone, Screen.Home -> Screen.Home
+            Screen.Kitchen -> Screen.Home
+            // Копилка, подушка и план, открытые из кошелька, возвращают в кошелёк.
+            Screen.Cushion, Screen.Budget, Screen.Goals -> if (fromScreen == Screen.Wallet) Screen.Wallet else Screen.Phone
+            Screen.Travel, Screen.Diary, Screen.Bank, Screen.Grocery, Screen.Parent, Screen.Barter,
+            Screen.Store, Screen.BankJob, Screen.Business, Screen.Shop,
+            Screen.Tasks, Screen.Housing, Screen.Glossary, Screen.Market -> Screen.Phone
+            else -> Screen.Home
+        }
+    )
 
     fun clearToast() {
         toast = null
@@ -223,6 +249,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun takeOff(slot: Slot) = commit(GameEngine.takeOff(state, slot), showMessages = false)
 
     fun buyJoy(id: String) = commit(GameEngine.buyJoy(state, id))
+
+    // ───────────────────────── Маркет: одежда Монтика ─────────────────────────
+    fun buyMarket(id: String) = commit(ru.montik.app.game.Market.buy(state, id))
+    fun wearMarket(id: String) = commit(ru.montik.app.game.Market.wear(state, id), showMessages = false)
+    fun takeOffMarket(id: String) = commit(ru.montik.app.game.Market.takeOff(state, id), showMessages = false)
     fun eatMeal(id: String) = commit(GameEngine.eatMeal(state, id))
 
     // ───────────────────────── Магазин продуктов и холодильник ─────────────────────────
@@ -244,10 +275,17 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         return out.ok
     }
 
+    /** Задание в новом городе: выбрать лучшее место / блюдо / прогулку / товар. */
+    fun solveCityTask(optionId: String) = commit(ru.montik.app.game.CityTasks.solve(state, optionId))
+
+    /** Сколько сил дал последний съеденный продукт (плашка «+5⚡» над Монтиком) и номер события. */
+    var energyGain by mutableStateOf(0 to 0)
+
     /** Взять продукт из холодильника: true — съеден. */
     fun eatFromFridge(id: String): Boolean {
         val out = Grocery.eat(state, id)
         commit(out)
+        if (out.ok) Grocery.item(id)?.let { energyGain = Grocery.energyOf(it) to energyGain.second + 1 }
         return out.ok
     }
 
@@ -283,6 +321,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun markPeriodSeen() = updateState(GameEngine.markPeriodSeen(state))
     fun markHelpSeen() = updateState(GameEngine.markHelpSeen(state))
 
+    /** Знакомство с комнатой: следующий шаг (см. ui/FirstRunTour.kt). */
+    fun advanceTour() = updateState(state.copy(tourStep = state.tourStep + 1))
+
+    /** Знакомство пройдено или пропущено — больше не показываем. */
+    fun finishTour() = updateState(state.copy(tourStep = 99))
+
     /** Подсказку «три решения» можно открыть в любой момент кнопкой «?». */
     var helpOpen by mutableStateOf(false)
         private set
@@ -298,8 +342,20 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     // ───────────────────────── Копилка ─────────────────────────
 
-    fun chooseGoal(id: String) = commit(Goals.choose(state, id))
-    fun piggyIn(amount: Int) = commit(Goals.deposit(state, amount))
+    fun chooseGoal(id: String) {
+        commit(Goals.choose(state, id))
+        autoReachGoal()
+    }
+
+    fun piggyIn(amount: Int) {
+        commit(Goals.deposit(state, amount))
+        autoReachGoal()
+    }
+
+    /** Накопили на приставку — сразу получаем её (на главном экране появляется кнопка приставки). */
+    private fun autoReachGoal() {
+        if (Goals.autoReachDue(state)) commit(Goals.reach(state))
+    }
     fun piggyOut(amount: Int) = commit(Goals.withdraw(state, amount))
     fun reachGoal() = commit(Goals.reach(state))
 
@@ -508,6 +564,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     // ───────────────────────── Подушка безопасности ─────────────────────────
 
     fun deposit(amount: Int) = commit(GameEngine.depositCushion(state, amount))
+    fun cushionIn(amount: Int) = deposit(amount)
+    fun cushionOut(amount: Int) = withdraw(amount)
     fun withdraw(amount: Int) = commit(GameEngine.withdrawCushion(state, amount))
 
     // ───────────────────────── Банк ─────────────────────────
@@ -704,16 +762,27 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         create = CreateUi.Idle
     }
 
+    /** Отменённые мазки: «повтор» возвращает их по одному. Новый мазок очищает список. */
+    private val undone = mutableStateListOf<DrawStroke>()
+
+    val canRedo: Boolean get() = undone.isNotEmpty()
+
     fun addStroke(stroke: DrawStroke) {
         drawing.add(stroke)
+        undone.clear()
     }
 
     fun undoStroke() {
-        if (drawing.isNotEmpty()) drawing.removeAt(drawing.lastIndex)
+        if (drawing.isNotEmpty()) undone.add(drawing.removeAt(drawing.lastIndex))
+    }
+
+    fun redoStroke() {
+        if (undone.isNotEmpty()) drawing.add(undone.removeAt(undone.lastIndex))
     }
 
     fun clearDrawing() {
         drawing.clear()
+        undone.clear()
     }
 
     /**
@@ -721,7 +790,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * Возвращает false, если рисовать было нечего (пустой холст).
      */
     fun finishDrawing(): Boolean {
-        val bitmap = DrawingExport.render(drawing.toList()) ?: return false
+        val bitmap = DrawingExport.render(drawing.toList(), PaintArt.load(getApplication())) ?: return false
         create = CreateUi.Preview(bitmap, cutOk = true, drawn = true)
         return true
     }

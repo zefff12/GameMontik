@@ -51,7 +51,7 @@ enum class Housing(
         "fg_room2", "fg_kitchen2"
     ),
     PENTHOUSE(
-        3, "Пентхаус с видом на Кремль", "Богатый", "🏙", 1500, 2000, 15,
+        3, "Просторная квартира", "Богатый", "🏙", 800, 700, 15,
         "Большие окна, вид на Кремль и кухня с мрамором. Роскошно, но и расходы большие.",
         "fg_room3", "fg_kitchen3"
     );
@@ -400,6 +400,13 @@ object Life {
         else -> null
     }
 
+    /** Сколько звёзд привычек даёт переезд в новое жильё. */
+    fun starsForHome(target: Housing): Int = when (target) {
+        Housing.MODEST -> 0
+        Housing.COZY -> 3
+        Housing.PENTHOUSE -> 5
+    }
+
     /** Переезд. Вверх — за звёзды и деньги на переезд; вниз (подешевле) — бесплатно, если стало трудно платить. */
     fun moveTo(state: GameState, level: Int): Outcome {
         val target = Housing.values().firstOrNull { it.level == level } ?: return GameEngine.fail(state, "Такого жилья нет.")
@@ -407,12 +414,14 @@ object Life {
         val c = GameEngine.Ctx(state)
         if (target.level > state.housing) {
             if (target.moveCost > 0) c.spend(target.moveCost, SpendKind.OTHER, "переезд")
-            c.s = c.s.copy(housing = target.level, milestones = c.s.milestones + "moved_up")
+            // Новое жильё — новые звёзды: чем лучше жильё, тем выше уровень.
+            val bonus = starsForHome(target)
+            c.s = c.s.copy(housing = target.level, milestones = c.s.milestones + "moved_up", stars = c.s.stars + bonus)
             c.mood(20, "Переезд в новую квартиру — большое событие!")
             c.xp(Progress.XP_MOVE_UP)
             c.say(
                 "${target.emoji} Монтик переехал: «${target.title}»! Теперь его уровень — «${target.levelTitle}». " +
-                    "Аренда — ${target.rent} монет дважды в месяц."
+                    "Аренда — ${target.rent} монет дважды в месяц. +$bonus ⭐"
             )
             c.log("переехал: ${target.title}")
         } else {

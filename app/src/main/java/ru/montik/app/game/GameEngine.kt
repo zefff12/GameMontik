@@ -33,7 +33,9 @@ object Rules {
     const val CHORE_COINS = 10
 
     /** Банк: вклад приносит проценты в конце каждого дня. */
-    const val DEPOSIT_PERCENT = 10
+    /** Вклад растёт на 5% каждую неделю (7 игровых дней на вкладе). */
+    const val DEPOSIT_PERCENT = 5
+    const val DEPOSIT_PERIOD_DAYS = 7
     const val MIN_DEPOSIT = 10
 
     /** Банк: кредит выдают одной суммой, а вернуть нужно больше — разница и есть плата банку. */
@@ -123,8 +125,37 @@ data class WorkTask(
     val question: String,
     val options: List<String>,
     val correctIndex: Int,
-    val explanation: String
+    val explanation: String,
+    /** Что нарисовать в мини-игре: сколько деталей в каждой коробке (пусто — задание без картинки). */
+    val boxes: List<Int> = emptyList(),
+    /** Сколько деталей бракованных (для задания «убери брак»). */
+    val broken: Int = 0,
+    /** Номер задания «Работа у мастера» из макета (0…5) или −1, если задание без готового кадра. */
+    val master: Int = -1
 )
+
+/**
+ * Шесть заданий «Работа у мастера» из макета: вопрос и коробки нарисованы на кадре,
+ * варианты ответа — в том же порядке, что на кнопках кадра.
+ */
+object MasterTasks {
+    class Item(val question: String, val options: List<Int>, val answer: Int, val explanation: String)
+
+    val all: List<Item> = listOf(
+        Item("В каждой коробке 3 детали. Сколько деталей в 3 коробках?", listOf(8, 9, 10), 9,
+            "3 + 3 + 3 = 9, или 3 × 3 = 9. Умножение помогает считать быстро."),
+        Item("В каждой коробке 4 детали. Сколько деталей в 3 коробках?", listOf(10, 11, 12), 12,
+            "4 + 4 + 4 = 12, или 3 × 4 = 12."),
+        Item("В каждой коробке разное количество деталей: 5, 3 и 7. Сколько всего?", listOf(13, 14, 15), 15,
+            "5 + 3 + 7 = 15. Складываем по очереди — и ничего не теряем."),
+        Item("В коробках 4, 5 и 3 детали. Сколько всего деталей в 3 коробках?", listOf(10, 11, 12), 12,
+            "4 + 5 + 3 = 12. Мастер ценит, когда работа сделана внимательно."),
+        Item("В коробку нужно положить 6 деталей, а в ней уже 3. Сколько ещё добавить?", listOf(2, 3, 4), 3,
+            "6 − 3 = 3. Вычитание показывает, сколько не хватает."),
+        Item("Для сборки нужны детали: 2 + 4 + 4 + 2. Сколько всего деталей понадобится?", listOf(10, 12, 14), 12,
+            "2 + 4 + 4 + 2 = 12. Считаем все детали по рисунку.")
+    )
+}
 
 enum class SleepPlace { CABIN, BENCH }
 
@@ -444,34 +475,11 @@ object GameEngine {
     fun makeTask(state: GameState, job: Job): WorkTask {
         val rnd = Random(state.seed * 1_000_003L + state.shifts * 31L + state.day)
         return when (job) {
-            Job.HELPER -> when (rnd.nextInt(3)) {
-                0 -> {
-                    val a = rnd.nextInt(3, 10)
-                    val b = rnd.nextInt(3, 10)
-                    task(
-                        "В одной коробке $a шурупов, в другой — $b гаек. Сколько всего деталей нужно отправить заказчику?",
-                        a + b, rnd,
-                        "$a + $b = ${a + b}. Мастер ценит, когда работа сделана внимательно."
-                    )
-                }
-                1 -> {
-                    val boxes = rnd.nextInt(2, 6)
-                    val per = rnd.nextInt(3, 8)
-                    task(
-                        "Нужно разложить детали по $boxes коробкам, в каждой по $per штук. Сколько всего деталей?",
-                        boxes * per, rnd,
-                        "$boxes × $per = ${boxes * per}. Умножение помогает считать быстро."
-                    )
-                }
-                else -> {
-                    val all = rnd.nextInt(15, 30)
-                    val bad = rnd.nextInt(2, 8)
-                    task(
-                        "Из $all деталей $bad оказались бракованными. Сколько хороших деталей осталось?",
-                        all - bad, rnd,
-                        "$all − $bad = ${all - bad}. Брак нужно откладывать в сторону."
-                    )
-                }
+            Job.HELPER -> {
+                // Задания мастера — по кадрам макета, по кругу: каждая смена — следующее задание.
+                val i = state.shifts.mod(MasterTasks.all.size)
+                val m = MasterTasks.all[i]
+                WorkTask(m.question, m.options.map { it.toString() }, m.options.indexOf(m.answer), m.explanation, master = i)
             }
             Job.SELLER -> {
                 val given = if (rnd.nextBoolean()) 50 else 100
@@ -485,7 +493,28 @@ object GameEngine {
         }
     }
 
-    private fun task(question: String, answer: Int, rnd: Random, explanation: String): WorkTask {
+    /** «3 детали», «5 деталей» — для подписей мини-игры. */
+    fun details(n: Int): String {
+        val mod100 = n % 100
+        val mod10 = n % 10
+        return when {
+            mod100 in 11..14 -> "деталей"
+            mod10 == 1 -> "деталь"
+            mod10 in 2..4 -> "детали"
+            else -> "деталей"
+        }
+    }
+
+    private fun boxesWord(n: Int): String = if (n % 10 == 1 && n % 100 != 11) "коробке" else "коробках"
+
+    private fun task(
+        question: String,
+        answer: Int,
+        rnd: Random,
+        explanation: String,
+        boxes: List<Int> = emptyList(),
+        broken: Int = 0
+    ): WorkTask {
         val wrong = linkedSetOf<Int>()
         val candidates = listOf(answer + 1, answer - 1, answer + 2, answer - 2, answer + 10, answer - 10)
             .filter { it > 0 && it != answer }
@@ -494,7 +523,7 @@ object GameEngine {
             if (wrong.size < 2) wrong += w
         }
         val options = (wrong + answer).toList().shuffled(rnd)
-        return WorkTask(question, options.map { "$it" }, options.indexOf(answer), explanation)
+        return WorkTask(question, options.map { "$it" }, options.indexOf(answer), explanation, boxes, broken)
     }
 
     /**
@@ -764,13 +793,22 @@ object GameEngine {
         }
         c.log("день закончен: +${diary.earned}, −${diary.spent}, отложено ${diary.saved}")
 
-        // Банк: за полный день на вкладе начисляются проценты.
-        val interest = dailyInterest(c.s)
-        if (interest > 0) {
-            c.s = c.s.copy(deposit = c.s.deposit + interest)
-            c.say("🏦 Банк начислил $interest монет на вклад. Теперь на вкладе ${c.s.deposit} — деньги работают сами.")
-            c.log("проценты по вкладу +$interest")
-            c.teach(Lesson.DEPOSIT)
+        // Банк: каждую неделю на вкладе (7 полных дней) вклад вырастает на 5%.
+        if (c.s.deposit > 0) {
+            val days = c.s.depositDays + 1
+            if (days >= Rules.DEPOSIT_PERIOD_DAYS) {
+                val interest = weeklyInterest(c.s)
+                c.s = c.s.copy(deposit = c.s.deposit + interest, depositDays = 0)
+                if (interest > 0) {
+                    c.say("🏦 Прошла неделя: банк добавил $interest монет (5%). Теперь на вкладе ${c.s.deposit} — деньги работают сами.")
+                    c.log("проценты по вкладу +$interest")
+                    c.teach(Lesson.DEPOSIT)
+                }
+            } else {
+                c.s = c.s.copy(depositDays = days)
+            }
+        } else if (c.s.depositDays != 0) {
+            c.s = c.s.copy(depositDays = 0)
         }
         if (c.s.debt > 0) {
             c.say("💳 Не забудь: банку нужно вернуть ${c.s.debt} монет. Чем раньше вернёшь, тем спокойнее.")
@@ -884,8 +922,11 @@ object GameEngine {
 
     // ───────────────────────── Банк: вклад и кредит ─────────────────────────
 
-    /** Сколько банк начислит на вклад в конце дня. */
-    fun dailyInterest(state: GameState): Int = state.deposit * Rules.DEPOSIT_PERCENT / 100
+    /** Сколько банк добавит к вкладу в конце недели (5%). */
+    fun weeklyInterest(state: GameState): Int = (state.deposit * Rules.DEPOSIT_PERCENT + 50) / 100
+
+    /** Через сколько дней банк начислит проценты. */
+    fun daysToInterest(state: GameState): Int = (Rules.DEPOSIT_PERIOD_DAYS - state.depositDays).coerceAtLeast(1)
 
     /** Положить деньги на вклад. Пока есть долг, вклад открыть нельзя: сначала нужно вернуть кредит. */
     fun depositToBank(state: GameState, amount: Int): Outcome {
@@ -901,7 +942,7 @@ object GameEngine {
             daySaved = c.s.daySaved + amount,
             pSaved = c.s.pSaved + amount
         )
-        c.say("🏦 На вклад положено $amount монет. Завтра банк добавит ${dailyInterest(c.s)}.")
+        c.say("🏦 На вклад положено $amount монет. Через ${daysToInterest(c.s)} дн. банк добавит ${weeklyInterest(c.s)} (5% за неделю).")
         c.log("вклад +$amount")
         c.teach(Lesson.DEPOSIT)
         if (Medals.DEPOSIT_MADE !in c.s.milestones) {
@@ -1152,7 +1193,7 @@ object GameEngine {
                 TripPhase.FLY_HOME -> "летим домой"
             }
         }
-        val next = Destinations.all.firstOrNull { it.id !in state.completedTrips }
+        val next = Destinations.all.firstOrNull { it.id !in state.completedTrips && it.id != "nn" }  // Нижний Новгород — родной город, его нет на карте
             ?: return "🏆 Монтик объехал всю страну и отдохнул у моря. Ты справился! " + BusinessEngine.goal(state)
         return "${next.emoji} Накопить на билет в ${next.name}: ${state.coins} из ${next.ticket} монет"
     }

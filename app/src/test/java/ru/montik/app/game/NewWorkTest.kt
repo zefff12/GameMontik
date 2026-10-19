@@ -59,10 +59,11 @@ class NewWorkTest {
 
     @Test
     fun eatingFromTheFridgeFeedsMontikAndUsesUpFood() {
-        val s = started().copy(food = 40, water = 40, fridge = mapOf("bread" to 1, "water" to 2))
+        val s = started().copy(food = 40, water = 40, energy = 50, fridge = mapOf("bread" to 1, "water" to 2))
         val ate = Grocery.eat(s, "bread")
         assertTrue(ate.ok)
         assertEquals(65, ate.state.food)
+        assertEquals(minOf(100, s.energy + Grocery.energyOf(Grocery.item("bread")!!)), ate.state.energy)   // еда даёт силы
         assertNull(ate.state.fridge["bread"])
         val drank = Grocery.eat(ate.state, "water")
         assertEquals(75, drank.state.water)

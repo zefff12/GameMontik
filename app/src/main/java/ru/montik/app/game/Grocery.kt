@@ -111,7 +111,7 @@ object Grocery {
         // Только на «Главной»
         g("strawberries", "Клубника", "250 г", 180, 12, 6, 5, true, "🍓"),
         g("bread", "Хлеб цельнозерновой", "400 г", 120, 25, 0, emoji = "🍞"),
-        g("tvorog", "Творог натуральный", "200 г", 120, 25, 0, emoji = "🥛"),
+        g("tvorog", "Творог натуральный", "200 г", 180, 25, 0, emoji = "🥛"),
         // Только с рынка енота Сергеевича (в магазине их нет — их можно выменять, см. Barter)
         g("honey", "Мёд", "1 банка", 250, 12, 0, 6, true, "🍯"),
         g("herbal_tea", "Травяной чай", "1 чайник", 200, 2, 35, 5, true, "🫖")
@@ -193,7 +193,11 @@ object Grocery {
         c.spend(wants, SpendKind.WANT, if (wants > 0) "вкусности" else null)
         var fridge = state.fridge
         for ((id, n) in clean) fridge = fridge + (id to ((fridge[id] ?: 0) + n).coerceAtMost(MAX_PER_ITEM * 3))
-        c.s = c.s.copy(fridge = fridge)
+        // История: всего на продукты и покупки за сегодняшний игровой день.
+        val today = if (state.groceryDay == state.day) state.groceryToday else emptyMap()
+        var bought = today
+        for ((id, n) in clean) bought = bought + (id to ((bought[id] ?: 0) + n))
+        c.s = c.s.copy(fridge = fridge, groceryTotal = state.groceryTotal + total, groceryDay = state.day, groceryToday = bought)
         c.say(
             "🛒 Куплено на $total монет: $names. Продукты уже в холодильнике." +
                 if (wants > 0) " Из них $wants — желаемые вкусности." else ""
@@ -212,7 +216,22 @@ object Grocery {
 
     fun fridgeCount(state: GameState): Int = state.fridge.values.sum()
 
-    /** Съесть или выпить продукт из холодильника: он пропадает, сытость и вода растут. */
+    /** Покупки за сегодняшний игровой день: продукт → сколько штук. */
+    fun boughtToday(state: GameState): List<Pair<GroceryItem, Int>> =
+        if (state.groceryDay != state.day) emptyList()
+        else all.mapNotNull { item -> state.groceryToday[item.id]?.takeIf { it > 0 }?.let { item to it } }
+
+    /** Сколько сил (энергии) даёт продукт: лёгкий перекус +2, обычный +5, сытная еда +7. */
+    fun energyOf(item: GroceryItem): Int {
+        val value = item.food + item.water / 2
+        return when {
+            value >= 40 -> 7
+            value >= 20 -> 5
+            else -> 2
+        }
+    }
+
+    /** Съесть или выпить продукт из холодильника: он пропадает, сытость и вода растут, прибавляются силы. */
     fun eat(state: GameState, id: String): Outcome {
         val item = item(id) ?: return GameEngine.fail(state, "Такого продукта нет.")
         val have = state.fridge[id] ?: 0
@@ -225,7 +244,7 @@ object Grocery {
         val c = GameEngine.Ctx(state)
         val left = have - 1
         c.s = c.s.copy(fridge = if (left > 0) state.fridge + (id to left) else state.fridge - id)
-        c.meters(food = item.food, water = item.water)
+        c.meters(energy = energyOf(item), food = item.food, water = item.water)
         if (item.mood > 0) c.mood(item.mood, "Вкусно! ${item.name} подняли настроение.")
         val gains = buildList {
             if (item.food > 0) add("сытость +${item.food}")

@@ -174,6 +174,7 @@ class LifeTest {
         assertEquals(2, moved.state.housing)
         assertEquals(0, moved.state.coins)
         assertEquals("Средний достаток", moved.state.home.levelTitle)
+        assertEquals(6 + Life.starsForHome(Housing.COZY), moved.state.stars)   // новое жильё — новые звёзды
         assertTrue(Medals.earned(moved.state).any { it.id == "newhome" })
         val down = Life.moveTo(moved.state, 1)
         assertTrue(down.ok)

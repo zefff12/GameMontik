@@ -460,15 +460,15 @@ fun TipOverlay(vm: GameViewModel, tip: Tip) {
     val fb = rememberFeedback()
     LaunchedEffect(tip.id) { fb.tap() }
     BackHandler(enabled = true) { vm.dismissTip(tip) }
+    // Карточка из макета без затемнения: появляется с «прыжком», закрывается крестиком или нажатием.
+    val enter = rememberEnter()
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { vm.dismissTip(tip) }
     ) {
-        DesignCanvas {
+        DesignCanvas(modifier = Modifier.enterPop(enter)) {
             TipCard(tip, 21f, 300f) { vm.dismissTip(tip) }
-            LivePill("Понятно!", 121f, 530f) { vm.dismissTip(tip) }
         }
     }
 }
@@ -609,7 +609,7 @@ private fun Int.dp2px(scope: androidx.compose.ui.graphics.drawscope.DrawScope): 
 /** Вещи, купленные на накопленное, стоят в комнате: белые наклейки с галочкой, как карточки в концептах макета. */
 @Composable
 fun DesignScope.RoomThings(vm: GameViewModel, x: Float, y: Float) {
-    val things = Keepsakes.things(vm.state)
+    val things = Keepsakes.things(vm.state).filter { it.id != ru.montik.app.game.ConsoleGame.GOAL_ID }
     things.forEachIndexed { i, goal ->
         val tx = x + i * 72f
         Box(

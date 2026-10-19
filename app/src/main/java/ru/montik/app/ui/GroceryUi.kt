@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.key
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -153,7 +155,11 @@ fun GroceryScreen(vm: GameViewModel) {
         GroceryFallback(vm)
         return
     }
-    if (cartOpen) {
+    if (!cartOpen && hasNewShop()) {
+        // Новый макет магазина: страницы-кадры, «Монетки» и «Профиль» на нижней панели.
+        var tab by rememberSaveable { mutableStateOf(0) }
+        NewShopPage(vm, section, tab, onTab = { tab = it }, go = go, onCart = { cartOpen = true })
+    } else if (cartOpen) {
         CartScreen(vm, onBack = { cartOpen = false }, onHome = { go(GrocerySection.HOME) }, onCatalog = { cartOpen = false; catalogOpen = true })
     } else {
         SectionPage(vm, section, page, go, onCart = { cartOpen = true }, onCatalog = { catalogOpen = true })
@@ -251,6 +257,10 @@ private fun SectionPage(
 @Composable
 private fun SectionHits(section: GrocerySection, page: GroceryPage, k: Float, go: (GrocerySection) -> Unit) {
     if (section == GrocerySection.HOME) {
+        // У четвёртой плитки в кадре нет подписи — в макете это «Молочное».
+        Box(Modifier.px(k, 399f, 446f, 517f, 474f), contentAlignment = Alignment.Center) {
+            Text("Молочное", color = ShopInk, fontSize = (19f * k).sp, maxLines = 1)
+        }
         Box(Modifier.px(k, 21f, 369f, 134f, 476f).tap { go(GrocerySection.FOOD) })
         Box(Modifier.px(k, 145f, 369f, 261f, 476f).tap { go(GrocerySection.VEG) })
         Box(Modifier.px(k, 272f, 369f, 389f, 476f).tap { go(GrocerySection.FRUITS) })
@@ -366,10 +376,11 @@ private fun CartScreen(vm: GameViewModel, onBack: () -> Unit, onHome: () -> Unit
                         ArtImage("fg_shop_cart_top", Modifier.fillMaxSize(), ContentScale.FillBounds) {}
                         Box(Modifier.px(k, 0f, 0f, 130f, 90f).tap(onBack))
                         Box(Modifier.px(k, 620f, 0f, 752f, 90f).tap { vm.cartClear() })
-                        Box(Modifier.px(k, 30f, 148f, 700f, 180f), contentAlignment = Alignment.CenterStart) {
+                        // Подпись под заголовком: целиком внутри шапки (в кадре 200), не обрезается снизу.
+                        Box(Modifier.px(k, 30f, 134f, 720f, 178f), contentAlignment = Alignment.CenterStart) {
                             Text(
                                 if (count == 0) "Пока пусто" else "${goodsWord(count)} на сумму $total монет",
-                                color = ShopGrey, fontSize = (30f * k).sp, maxLines = 1
+                                color = ShopGrey, fontSize = (27f * k).sp, lineHeight = (30f * k).sp, maxLines = 1
                             )
                         }
                     }
@@ -380,10 +391,10 @@ private fun CartScreen(vm: GameViewModel, onBack: () -> Unit, onHome: () -> Unit
                                 Spacer(Modifier.height(4.dp))
                                 Text("Нажимай «+» на карточках продуктов — они появятся здесь.", color = ShopGrey, fontSize = 15.sp, fontFamily = MontikFont)
                                 Spacer(Modifier.height(12.dp))
-                                GreenButton("В каталог  →") { onCatalog() }
+                                GreenButton("В каталог") { onCatalog() }
                             }
                         }
-                        for ((item, n) in lines) CartRow(item, n, onMinus = { fb.tap(); vm.cartRemove(item.id) }, onPlus = { fb.tap(); vm.cartAdd(item.id) }, onDrop = { vm.cartDrop(item.id) })
+                        for ((item, n) in lines) key(item.id) { Entering { CartRow(item, n, onMinus = { fb.tap(); vm.cartRemove(item.id) }, onPlus = { fb.tap(); vm.cartAdd(item.id) }, onDrop = { vm.cartDrop(item.id) }) } }
                         if (lines.isNotEmpty()) {
                             val (needs, wants) = Grocery.split(cart)
                             CartCard {
@@ -397,7 +408,7 @@ private fun CartScreen(vm: GameViewModel, onBack: () -> Unit, onHome: () -> Unit
                                 SumRow("В кошельке", "${vm.state.coins}")
                                 Spacer(Modifier.height(10.dp))
                                 val enough = vm.state.coins >= total
-                                GreenButton(if (enough) "🔒  Оплатить  →" else "Не хватает ${total - vm.state.coins} монет", enabled = enough) {
+                                GreenButton(if (enough) "Оплатить" else "Не хватает ${total - vm.state.coins} монет", enabled = enough) {
                                     if (vm.checkout()) fb.coin() else fb.bad()
                                 }
                                 if (!enough) {
@@ -414,7 +425,7 @@ private fun CartScreen(vm: GameViewModel, onBack: () -> Unit, onHome: () -> Unit
                 }
             }
             NavBar("fg_shop_cart_nav", CART_W, CART_NAV_H, Color(0xFFEFF5EF), floatArrayOf(380f, 14f, 417f, 50f), cart, cartTab = true,
-                onHome = onHome, onCatalog = onCatalog, onCart = {}, onCoins = onHome, onProfile = { vm.goTo(Screen.Shop) })
+                onHome = onHome, onCatalog = onCatalog, onCart = {}, onCoins = onBack, onProfile = onBack)
         }
     }
 }
@@ -438,6 +449,14 @@ private fun CartCard(content: @Composable () -> Unit) {
     ) { content() }
 }
 
+/** Кнопка «−» или «+» в счётчике количества: квадрат 34×34, знак строго по центру. */
+@Composable
+private fun QtyKey(sign: String, onClick: () -> Unit) {
+    Box(Modifier.size(34.dp).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Text(sign, color = ShopGreen, fontSize = 20.sp, textAlign = TextAlign.Center, maxLines = 1)
+    }
+}
+
 @Composable
 private fun CartRow(item: GroceryItem, n: Int, onMinus: () -> Unit, onPlus: () -> Unit, onDrop: () -> Unit) {
     Row(
@@ -453,13 +472,16 @@ private fun CartRow(item: GroceryItem, n: Int, onMinus: () -> Unit, onPlus: () -
             Text(item.name, color = ShopInk, fontSize = 15.sp, fontFamily = MontikFont, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(item.amount, color = ShopGrey, fontSize = 13.sp, fontFamily = MontikFont)
         }
+        // Счётчик: фиксированная высота и ячейки одного размера, чтобы «−», число и «+» стояли на одной линии.
         Row(
-            Modifier.clip(RoundedCornerShape(50)).background(QtyGreen).padding(horizontal = 4.dp),
+            Modifier.height(34.dp).clip(RoundedCornerShape(50)).background(QtyGreen).padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("−", Modifier.clickable(onClick = onMinus).padding(horizontal = 8.dp, vertical = 4.dp), color = ShopGreen, fontSize = 20.sp)
-            Text("$n", color = ShopGreen, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Text("+", Modifier.clickable(onClick = onPlus).padding(horizontal = 8.dp, vertical = 4.dp), color = ShopGreen, fontSize = 20.sp)
+            QtyKey("−", onMinus)
+            Box(Modifier.width(26.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                Text("$n", color = ShopGreen, fontSize = 17.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1)
+            }
+            QtyKey("+", onPlus)
         }
         Spacer(Modifier.width(8.dp))
         Column(Modifier.width(56.dp), horizontalAlignment = Alignment.End) {

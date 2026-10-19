@@ -1,5 +1,10 @@
 package ru.montik.app.ui
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.res.imageResource
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -91,14 +96,17 @@ fun DesignScope.HudChip(
     }
 }
 
-/** Всё, что лежит поверх картинки комнаты или кухни. [minutes] — время суток на часах Монтика. */
+/**
+ * Управление главного экрана по новому макету (кадр «переезд»): пузыри времени, уровня и настроения
+ * слева сверху, монеты справа сверху, «Работа» и «Задания» слева, столбик «Телефон / Кошелёк /
+ * Холодильник» справа, три круглые шкалы внизу (сон, еда, вода) и плашка «Кухня» (на кухне — «Комната»).
+ * [minutes] — время суток на часах Монтика.
+ */
 @Composable
-fun DesignScope.HomeHud(vm: GameViewModel, minutes: Int, helpY: Float = 556f, helpX: Float = 346f) {
+fun DesignScope.HomeHud(vm: GameViewModel, minutes: Int, kitchen: Boolean = false) {
     val s = vm.state
-    // Без картинок макета плашку монет, «Работу» и круглые кнопки рисуем простыми пилюлями.
-    val figma = rememberHasArt("fg_room_coins", "fg_room_buttons", "fg_room_work")
 
-    // Три плашки из макета (Group 21): время суток, уровень с шкалой опыта и жильём, настроение.
+    // Пузыри: время суток, уровень с жильём, настроение (надписи — живые).
     StatusPills(vm, minutes)
 
     // Монеты растут — монетки летят в кошелёк, число «докручивается».
@@ -118,77 +126,126 @@ fun DesignScope.HomeHud(vm: GameViewModel, minutes: Int, helpY: Float = 556f, he
     }
     val coinsText = spaced(shownCoins.value.toInt())
 
-    // Монеты (плашка из макета) — число подставляем своё; «+» — заработать.
-    if (!figma) {
-        HudChip("🪙 $coinsText  ➕", 226f, 36f, 174f) { vm.goTo(Screen.Work) }
-        HudChip("💼 Работа", 8f, 196f, 130f) { vm.goTo(Screen.Work) }
-        HudChip("🍔 Кухня", 286f, 206f, 118f) { vm.goTo(Screen.Kitchen) }
-        HudChip("💤 Сон", 286f, 256f, 118f) { vm.goTo(Screen.Sleep) }
-        HudChip("📱 Телефон", 286f, 306f, 118f) { vm.goTo(Screen.Phone) }
-        HudChip("👛 План", 286f, 356f, 118f) { vm.goTo(Screen.Budget) }
-    }
-
-    if (figma) Art("fg_room_coins", 217f, 29f, 193f, 64f, ContentScale.FillBounds)
-    if (figma) Box(
-        Modifier
-            .at(281f, 44f, 70f, 30f)
-            .background(Brush.verticalGradient(listOf(Color(0xFFFEFEFE), Color(0xFFFCF2DC)))),
-        contentAlignment = Alignment.Center
-    ) {
+    // Плашка монет из макета (нарисованное «1 250» стёрто с картинки), число — настоящее, на том же месте.
+    Art("fg3_home_coin_clean", 219f, 29f, 193f, 64f, ContentScale.FillBounds)
+    Box(Modifier.at(274f, 44f, 86f, 31f), contentAlignment = Alignment.Center) {
         Text(
             coinsText,
             color = Color(0xFF1D0B0A),
-            fontSize = fs(22f, false),
+            fontSize = fs(if (coinsText.length > 5) 18f else 22f, false),
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             softWrap = false
         )
     }
-    if (figma) {
-        Hit(350f, 37f, 48f, 44f) { vm.goTo(Screen.Work) }
-        // «Работа» слева.
-        Art("fg_room_work", 0f, 176f, 114f, 118f, ContentScale.Fit)
-        Hit(6f, 182f, 90f, 106f) { vm.goTo(Screen.Work) }
+    // «+» — заработать.
+    Hit(350f, 34f, 56f, 54f) { vm.goTo(Screen.Work) }
+
+    // «Работа» и круглая кнопка «Задания» слева.
+    Art("fg3_home_clock", 0f, 176f, 114f, 118f, ContentScale.FillBounds)
+    PressHit(16f, 194f, 70f, 68f, 14f) { vm.goTo(Screen.Work) }
+    Art("fg3_home_tasks", 12f, 275f, 78f, 74f, ContentScale.FillBounds)
+    PressHit(15f, 277f, 72f, 71f, 36f) { vm.goTo(Screen.Tasks) }
+
+    // Столбик справа: Телефон, Кошелёк, Холодильник.
+    Art("fg3_home_right", 235f, 176f, 216f, 335f, ContentScale.FillBounds)
+    PressHit(295f, 192f, 97f, 100f, 48f) { vm.goTo(Screen.Phone) }
+    PressHit(295f, 297f, 97f, 94f, 46f) { vm.goTo(Screen.Wallet) }
+    PressHit(295f, 396f, 97f, 100f, 48f) { vm.goTo(Screen.FridgeDoor) }
+    val inFridge = ru.montik.app.game.Grocery.fridgeCount(s)
+    if (inFridge > 0) {
+        Box(
+            Modifier.at(370f, 400f, 22f, 22f).clip(CircleShape).background(Color(0xFFF2A516)),
+            contentAlignment = Alignment.Center
+        ) { Text("$inFridge", color = Color.White, fontSize = fs(11f, false), fontWeight = FontWeight.Bold) }
     }
 
-    // Квартира: отсчёт до оплаты или долг.
-    val rent = Life.rentNotice(s)
-    if (rent != null) {
-        HudChip(
-            rent, 8f, 298f, 300f,
-            tint = if (s.rentDebt > 0) Color(0xFFFFE1DD) else Color(0xFFFFF4D6)
-        ) { vm.goTo(Screen.Housing) }
+    // Приставка, накопленная в копилке, — круглая кнопка под холодильником.
+    if (ru.montik.app.game.ConsoleGame.GOAL_ID in s.goalsDone) {
+        Art("fg3_w_635", 306f, 512f, 80f, 80f, ContentScale.Fit)
+        PressHit(310f, 516f, 72f, 72f, 36f) { vm.goTo(Screen.Console) }
+    }
+
+    // Три круглые шкалы: сон (силы), еда (сытость), вода.
+    MeterRounds(s.energy, s.food, s.water)
+    PressHit(68f, 669f, 88f, 88f, 44f) { vm.goTo(Screen.Sleep) }
+    PressHit(162f, 669f, 88f, 88f, 44f) { vm.goTo(Screen.Fridge) }
+    PressHit(256f, 669f, 88f, 88f, 44f) { vm.goTo(Screen.Fridge) }
+
+    // В комнате — светлая плашка «Кухня»; на кухне — зелёные кнопки «Магазин» и «Комната» из макета.
+    if (kitchen) {
+        ArtButton("fg3_p_btn_shop", 6f, 830f, 168f, 56f) { vm.goTo(Screen.Grocery) }
+        ArtButton("fg3_p_btn_room", 238f, 830f, 168f, 56f) { vm.goTo(Screen.Home) }
+    } else {
+        RoomPill("Кухня", 294f, 761f, 106f) { vm.goTo(Screen.Kitchen) }
+    }
+
+    // Квартира: если есть долг за жильё — напоминание (остальное время экран чистый, как в макете).
+    if (s.rentDebt > 0) {
+        val rent = Life.rentNotice(s)
+        if (rent != null) HudChip(rent, 8f, 360f, 280f, tint = Color(0xFFFFE1DD)) { vm.goTo(Screen.Housing) }
     }
     // Демо-режим: перемотка к следующему периоду без ожидания.
     if (s.demo) {
-        HudChip("⏩ Следующий период", 8f, 344f, 190f, tint = Color(0xFFDDF3FF)) { vm.skipPeriod() }
+        HudChip("⏩ Следующий период", 8f, 406f, 190f, tint = Color(0xFFDDF3FF)) { vm.skipPeriod() }
     }
 
-    // Столбик круглых кнопок справа (новый макет, без «Усталости»): Голод, Сон, Телефон, Кошелёк.
-    // Полоски под «Голодом» и «Сном» живые: сытость и силы Монтика.
-    if (figma) {
-        Art("fg_room_buttons", 242f, 193f, 241f, 361f, ContentScale.FillBounds)
-        MeterBar(s.food, 247.6f, Color(0xFFFF8A1F), Color(0xFFF04E00))
-        MeterBar(s.energy, 331.6f, Color(0xFF3D7BFF), Color(0xFF0050F0))
-        Hit(328f, 195f, 68f, 80f) { vm.goTo(Screen.Kitchen) }
-        Hit(328f, 280f, 68f, 80f) { vm.goTo(Screen.Sleep) }
-        Hit(328f, 366f, 68f, 82f) { vm.goTo(Screen.Phone) }
-        Hit(328f, 452f, 68f, 88f) { vm.goTo(Screen.Budget) }
-    }
+    CoinBurst(burst, 206f, 700f, 300f, 60f)
+}
 
-    CoinBurst(burst, 206f, 560f, 262f, 60f)
-
-    // «?» — подсказка про три решения, доступна в любой момент.
+/** Плашка «Кухня» из макета: #FEF7E7, рамка #B7A985, текст #54424B. */
+@Composable
+private fun DesignScope.RoomPill(text: String, x: Float, y: Float, w: Float, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
     Box(
         Modifier
-            .at(helpX, helpY, 48f, 48f)
-            .clip(CircleShape)
-            .background(Color.White)
-            .border(d(3f), MontikColors.Lime, CircleShape)
-            .clickable { vm.openHelp() },
+            .at(x, y, w, 38f)
+            .clip(RoundedCornerShape(d(19f)))
+            .background(if (pressed) Color(0xFFEFE4CC) else Color(0xFFFEF7E7))
+            .border(d(1f), Color(0xFFB7A985), RoundedCornerShape(d(19f)))
+            .clickable(interactionSource = source, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text("?", color = MontikColors.Ink, fontSize = fs(24f, false), fontWeight = FontWeight.Bold)
+        Text(text, color = Color(0xFF54424B), fontSize = fs(17f, false), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+    }
+}
+
+/**
+ * Три круглые кнопки внизу (картинка 2172×724 → 281×94 в точке 66, 667). Дуги на картинке живые:
+ * под ними — та же картинка без дуг, а полная поверх вырезается сектором по значению шкалы.
+ * Дуга идёт от «8 часов» к «12 часам»: 160°…300° в градусах Compose (по часовой от «3 часов»).
+ */
+@Composable
+private fun DesignScope.MeterRounds(energy: Int, food: Int, water: Int) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val fullId = remember { context.resources.getIdentifier("fg3_home_bottom", "drawable", context.packageName) }
+    val emptyId = remember { context.resources.getIdentifier("fg3_home_bottom_empty", "drawable", context.packageName) }
+    if (fullId == 0 || emptyId == 0) return
+    val full = androidx.compose.ui.graphics.ImageBitmap.imageResource(fullId)
+    val empty = androidx.compose.ui.graphics.ImageBitmap.imageResource(emptyId)
+    val e by animateFloatAsState(energy.coerceIn(0, 100) / 100f, tween(600), label = "mE")
+    val f by animateFloatAsState(food.coerceIn(0, 100) / 100f, tween(600), label = "mF")
+    val w by animateFloatAsState(water.coerceIn(0, 100) / 100f, tween(600), label = "mW")
+    androidx.compose.foundation.Canvas(Modifier.at(66f, 667f, 281f, 94f)) {
+        val dst = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
+        drawImage(empty, dstSize = dst, filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
+        val k = size.width / 2172f
+        val centers = listOf(381.5f, 1081f, 1784.5f)
+        listOf(e, f, w).forEachIndexed { i, v ->
+            if (v <= 0.01f) return@forEachIndexed
+            val cx = centers[i] * k
+            val cy = 352.5f * k
+            val r = 380f * k
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(cx, cy)
+                arcTo(androidx.compose.ui.geometry.Rect(cx - r, cy - r, cx + r, cy + r), 160f, 140f * v, false)
+                close()
+            }
+            clipPath(path) {
+                drawImage(full, dstSize = dst, filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
+            }
+        }
     }
 }
 
@@ -216,11 +273,7 @@ private fun DesignScope.MeterBar(value: Int, y: Float, from: Color, to: Color) {
  */
 @Composable
 fun DesignScope.InfoPanel(vm: GameViewModel, kitchen: Boolean) {
-    if (kitchen) {
-        GreenPanelButton("Комната", 294f, 856f, 106f, 40f) { vm.goTo(Screen.Home) }
-        return
-    }
-    if (rememberHasArt("fg_panel_main")) MainPanel(vm) else InfoPanelPlain(vm)
+    // Старой нижней панели больше нет: всё управление — в HomeHud (новый макет).
 }
 
 /**
@@ -239,7 +292,7 @@ private fun DesignScope.MainPanel(vm: GameViewModel) {
 
     // Верхняя строка: монеты · накоплено · план.
     val coins = spaced(s.coins)
-    HandText(coins, X(305f), Y(240f), 150f * k, if (coins.length > 5) 15.5f else 22f, bold = true)
+    HandText(coins, X(305f), Y(240f), 150f * k, when { coins.length > 5 -> 14f; coins.length > 3 -> 17f; else -> 22f }, bold = true)
     HandText(spaced(s.savings), X(690f), Y(258f), 180f * k, if (s.savings >= 10000) 17f else 22f, bold = true, align = TextAlign.End)
     val noPlan = Life.planMissing(s)
     HandText(if (noPlan) "нет плана!" else "план есть", X(1103f), Y(238f), 205f * k, 13.5f,
@@ -483,14 +536,14 @@ fun DesignScope.StatusPills(vm: GameViewModel, minutes: Int) {
     }
 
     // Часы: время и часть суток.
-    HudText(VirtualClock.format(minutes), hx(v.time.first), hy(v.time.second), 46f, 14.5f, v.timeColor)
-    HudText(v.part, hx(v.partAt.first), hy(v.partAt.second), 30f, 6.4f, v.timeColor)
+    HudText(VirtualClock.format(minutes), hx(v.time.first), hy(v.time.second), 46f * HK, 14.5f * HK, v.timeColor)
+    HudText(v.part, hx(v.partAt.first), hy(v.partAt.second), 30f * HK, 6.4f * HK, v.timeColor)
     // Уровень (опыт Монтика) и достаток жилья.
     val level = Progress.levelOf(s.xp)
-    HudText("$level", hx(v.digit.first), hy(v.digit.second), 22f, if (level >= 10) 12.5f else 16f, Color.White)
-    HudText(s.home.levelTitle.substringBefore(' '), hx(v.house.first), hy(v.house.second), 42f, 5.6f, v.labelColor)
+    HudText("$level", hx(v.digit.first), hy(v.digit.second), 22f * HK, (if (level >= 10) 12.5f else 16f) * HK, Color.White)
+    HudText(s.home.levelTitle.substringBefore(' '), hx(v.house.first), hy(v.house.second), 42f * HK, 5.6f * HK, v.labelColor)
     // Настроение — две строки, как в макете.
-    HudText(moodLabel(s.mood), hx(v.mood.first), hy(v.mood.second), 40f, 5.2f, v.labelColor, lines = 2)
+    HudText(moodLabel(s.mood), hx(v.mood.first), hy(v.mood.second), 40f * HK, 5.2f * HK, v.labelColor, lines = 2)
 
     // Нажатия по пузырям.
     Hit(hx(500f), hy(70f), 560f * k, 480f * k) {
@@ -551,9 +604,12 @@ private fun moodLabel(mood: Int): String = when {
 }
 
 /** Место картинки пузырей в макете. */
-private const val HUD_X = 0f
-private const val HUD_Y = 21f
-private const val HUD_W = 198f
+private const val HUD_X = 12f
+private const val HUD_Y = 41f
+private const val HUD_W = 156f
+
+/** Надписи пузырей подбирались под ширину 198 — уменьшаем вместе с картинкой. */
+private const val HK = HUD_W / 198f
 
 /** Надпись по центру точки (cx, cy) шириной w — жирный округлый шрифт, как в макете. */
 @Composable
@@ -616,34 +672,9 @@ fun KitchenScreen(vm: GameViewModel) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFFF6E7CF), Color(0xFFD9B98E)))))
         }
     }) {
-        // Магниты из поездок теперь висят на холодильнике (кадр Frame 38): кнопка «Холодильник» слева.
-        HomeHud(vm, minutes, helpY = 528f, helpX = 8f)
-        // Монтик отвечает на нажатие: прыжок, звук и реплика.
+        // Монтик отвечает на нажатие: прыжок, звук и реплика. Управление — то же, что в комнате (новый макет).
         TalkingMontik(vm, 96f, 350f, 220f, 230f, heroSize = 210f, bubbleX = 40f, bubbleY = 282f, bubbleW = 240f)
-
-        // Панели еды на кухне больше нет: Монтик ест то, что лежит в холодильнике (кнопка слева),
-        // а продукты покупает в магазине (кнопка «🛒 Магазин» ниже или приложение в телефоне).
-        GreenPanelButton("🛒 Магазин", 12f, 856f, 130f, 40f) { vm.goTo(Screen.Grocery) }
-
-        // Кнопка «Холодильник» (картинка из макета 99×148): слева, чтобы не заходить на кнопки справа.
-        // Сначала — закрытый холодильник с магнитами из поездок, потом — продукты внутри.
-        val fx = 6f
-        val fy = 384f
-        if (rememberHasArt("fg_fridge_btn")) {
-            Art("fg_fridge_btn", fx, fy, 84f, 126f, ContentScale.FillBounds)
-        } else {
-            HudChip("🧊 Холодильник", fx, fy + 40f, 110f) { vm.goTo(Screen.FridgeDoor) }
-        }
-        val inFridge = ru.montik.app.game.Grocery.fridgeCount(s)
-        if (inFridge > 0) {
-            Box(
-                Modifier.at(fx + 62f, fy + 22f, 24f, 24f).clip(CircleShape).background(Color(0xFFF2A516)),
-                contentAlignment = Alignment.Center
-            ) { Text("$inFridge", color = Color.White, fontSize = fs(12f, false), fontWeight = FontWeight.Bold) }
-        }
-        Hit(fx + 6f, fy + 20f, 72f, 100f) { vm.goTo(Screen.FridgeDoor) }
-
-        InfoPanel(vm, kitchen = true)
+        HomeHud(vm, minutes, kitchen = true)
     }
 }
 
@@ -682,6 +713,15 @@ private fun DesignScope.PriceTag(price: Int, x: Float, y: Float) {
 /** Знакомство с целью игры и тремя типами решений. Показывается один раз и по кнопке «?». */
 @Composable
 fun HelpDialog(vm: GameViewModel) {
+    // Окно «Как играть» — картинка из макета (image 395); кнопка «Понятно!» — нажимаемая зона.
+    if (rememberHasArt("fg_figma_help")) {
+        FigmaDialogArt(
+            "fg_figma_help", 1024f / 1536f,
+            listOf(ArtHit(0.256f, 0.822f, 0.558f, 0.108f) { vm.closeHelp() }),
+            onDismiss = { vm.closeHelp() }
+        )
+        return
+    }
     Dialog(onDismissRequest = { vm.closeHelp() }) {
         MontikCard(Modifier.verticalScroll(rememberScrollState())) {
             Text("Как играть", style = MaterialTheme.typography.titleLarge)

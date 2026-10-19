@@ -72,6 +72,8 @@ data class GameState(
     val cushion: Int = 0,
     /** Деньги на вкладе в банке: они растут, но не выручат прямо сегодня. */
     val deposit: Int = 0,
+    /** Сколько полных дней деньги лежат на вкладе с последнего начисления (каждые 7 — плюс 5%). */
+    val depositDays: Int = 0,
     /** Сколько монет нужно вернуть банку по кредиту (0 — долга нет). */
     val debt: Int = 0,
     val energy: Int = 100,
@@ -100,6 +102,8 @@ data class GameState(
     val doneScenarios: Set<String> = emptySet(),
     val trip: TripProgress? = null,
     val completedTrips: Set<String> = emptySet(),
+    /** В каких городах решено задание «Где открыть кофейню» (теория игр). */
+    val cityTasks: Set<String> = emptySet(),
     /** Города, где Монтик уже побывал (достижение «Открыт новый город» — только в первый раз). */
     val visitedCities: Set<String> = emptySet(),
     /** Сколько бизнес-конференций посетил Монтик: от них растёт уровень профессионала и заработок. */
@@ -177,6 +181,11 @@ data class GameState(
 
     /** Показано ли знакомство «три решения». */
     val helpSeen: Boolean = false,
+    /** Пошаговое знакомство с комнатой: номер шага. Значение 99 — уже пройдено (для старых сохранений). */
+    val tourStep: Int = 0,
+    /** Вещи из маркета: купленные и надетые сейчас (по одной на место). */
+    val wardrobe: Set<String> = emptySet(),
+    val outfit: Set<String> = emptySet(),
     /** Демонстрационный режим для экспертов: периоды без ожидания, все задания открыты. */
     val demo: Boolean = false,
 
@@ -202,6 +211,11 @@ data class GameState(
     // ── Магазин продуктов, банк, приставка ──
     /** Холодильник: id продукта (см. [Grocery]) → сколько штук. */
     val fridge: Map<String, Int> = emptyMap(),
+    /** Сколько всего монет потрачено на продукты (кнопка «Монетки» в магазине). */
+    val groceryTotal: Int = 0,
+    /** Что куплено в магазине продуктов за игровой день [groceryDay] (кнопка «Профиль»). */
+    val groceryDay: Int = 0,
+    val groceryToday: Map<String, Int> = emptyMap(),
     /** Сколько смен отработано в банке (проверка купюр). */
     val bankShifts: Int = 0,
     /** В какой день Монтик играл на приставке и сколько раз за этот день. */
@@ -283,7 +297,8 @@ enum class HeroPreset(
     private val pack: Int,
     private val crown: Int
 ) {
-    WHITE("white", "Белый", 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF),
+    // Белая шёрстка, а ушки, платочек, живот и корона — с мягкими оттенками (по правке: не полностью белый).
+    WHITE("white", "Белый", 0xFFFFFF, 0xFFF6EA, 0xFFD0E0, 0x9ED8FF, 0xFFC928),
     BLUE("blue", "Синий", 0x86D4FF, 0xFFF6EA, 0xFFA9B8, 0x3F4A2E, 0xFFC928),
     GREEN("green", "Зелёный", 0x8FE06A, 0xFFF6EA, 0xFFA9B8, 0x3F4A2E, 0xFFC928),
     PINK("pink", "Розовый", 0xFF9EC8, 0xFFF6EA, 0xFFD0E0, 0x5A3F4A, 0xFFC928),
@@ -368,6 +383,7 @@ object StateCodec {
         p["coins"] = s.coins.toString()
         p["cushion"] = s.cushion.toString()
         p["deposit"] = s.deposit.toString()
+        p["depositDays"] = s.depositDays.toString()
         p["debt"] = s.debt.toString()
         p["energy"] = s.energy.toString()
         p["food"] = s.food.toString()
@@ -390,6 +406,7 @@ object StateCodec {
         p["doneScenarios"] = s.doneScenarios.joinToString(",")
         s.trip?.let { p["trip"] = "${it.destinationId}:${it.stopsDone}:${it.phase.name}:${it.cafe}" }
         p["completedTrips"] = s.completedTrips.joinToString(",")
+        p["cityTasks"] = s.cityTasks.joinToString(",")
         p["visitedCities"] = s.visitedCities.joinToString(",")
         p["conferences"] = s.conferences.toString()
         s.pendingEvent?.let { p["pendingEvent"] = it }
@@ -430,6 +447,9 @@ object StateCodec {
         p["adsDeclined"] = s.adsDeclined.toString()
         p["joys"] = s.joys.entries.joinToString(";") { "${it.key}=${it.value}" }
         p["helpSeen"] = s.helpSeen.toString()
+        p["tourStep"] = s.tourStep.toString()
+        p["wardrobe"] = s.wardrobe.joinToString(",")
+        p["outfit"] = s.outfit.joinToString(",")
         p["demo"] = s.demo.toString()
         p["xp"] = s.xp.toString()
         p["levelSeen"] = s.levelSeen.toString()
@@ -442,6 +462,9 @@ object StateCodec {
         p["shopBest"] = s.shopBest.entries.joinToString(";") { "${it.key}=${it.value}" }
         p["soundOn"] = s.soundOn.toString()
         p["fridge"] = s.fridge.entries.joinToString(";") { "${it.key}=${it.value}" }
+        p["groceryTotal"] = s.groceryTotal.toString()
+        p["groceryDay"] = s.groceryDay.toString()
+        p["groceryToday"] = s.groceryToday.entries.joinToString(";") { "${it.key}=${it.value}" }
         p["bankShifts"] = s.bankShifts.toString()
         p["consoleDay"] = s.consoleDay.toString()
         p["consolePlays"] = s.consolePlays.toString()
@@ -560,6 +583,7 @@ object StateCodec {
                 coins = int("coins", d.coins).coerceAtLeast(0),
                 cushion = int("cushion", 0).coerceAtLeast(0),
                 deposit = int("deposit", 0).coerceAtLeast(0),
+                depositDays = int("depositDays", 0).coerceIn(0, 6),
                 debt = int("debt", 0).coerceAtLeast(0),
                 energy = pct("energy", 100),
                 food = pct("food", 100),
@@ -582,6 +606,7 @@ object StateCodec {
                 doneScenarios = set("doneScenarios"),
                 trip = trip,
                 completedTrips = set("completedTrips"),
+                cityTasks = set("cityTasks"),
                 // В старых сохранениях открытых городов нет: это те, куда Монтик уже съездил.
                 visitedCities = (if (p.getProperty("visitedCities") == null) set("completedTrips") else set("visitedCities"))
                     .filter { id -> Destinations.byId(id) != null }.toSet(),
@@ -632,6 +657,9 @@ object StateCodec {
                 adsDeclined = int("adsDeclined", 0).coerceAtLeast(0),
                 joys = pairs("joys").mapNotNull { (k, v) -> v.toIntOrNull()?.takeIf { it > 0 }?.let { k to it } }.toMap(),
                 helpSeen = p.getProperty("helpSeen") == "true",
+                tourStep = int("tourStep", 99),
+                wardrobe = set("wardrobe").filter { Market.item(it) != null }.toSet(),
+                outfit = set("outfit").filter { it in set("wardrobe") && Market.item(it) != null }.toSet(),
                 demo = p.getProperty("demo") == "true",
                 xp = int("xp", 0).coerceAtLeast(0),
                 levelSeen = int("levelSeen", 1).coerceAtLeast(1),
@@ -643,6 +671,12 @@ object StateCodec {
                 praises = int("praises", 0).coerceAtLeast(0),
                 shopBest = pairs("shopBest").mapNotNull { (k, v) -> v.toIntOrNull()?.coerceIn(0, 100)?.let { k to it } }.toMap(),
                 soundOn = p.getProperty("soundOn") != "false",
+                groceryTotal = int("groceryTotal", 0).coerceAtLeast(0),
+                groceryDay = int("groceryDay", 0).coerceAtLeast(0),
+                groceryToday = pairs("groceryToday").mapNotNull { (k, v) ->
+                    val n = v.toIntOrNull()
+                    if (Grocery.item(k) == null || n == null || n <= 0) null else k to n
+                }.toMap(),
                 fridge = pairs("fridge").mapNotNull { (k, v) ->
                     val n = v.toIntOrNull()
                     if (Grocery.item(k) == null || n == null || n <= 0) null else k to n
