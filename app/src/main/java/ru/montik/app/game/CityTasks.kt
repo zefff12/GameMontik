@@ -70,7 +70,7 @@ object CityTasks {
         val best = task.best
         if (option.id == best.id) {
             c.earn(BEST_REWARD)
-            c.xp(Progress.XP_GOAL)
+            c.xp(Progress.XP_DAILY_TASK)
             c.skill(Skill.ENTREPRENEUR, 2)
             c.say(
                 "🏆 Отличный выбор: «${option.title}»! Доход ${option.income} монет и мало конкурентов — " +

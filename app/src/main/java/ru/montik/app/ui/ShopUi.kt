@@ -1,5 +1,6 @@
 package ru.montik.app.ui
 
+import androidx.compose.foundation.layout.Row
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -393,14 +394,56 @@ private fun StoreHub(vm: GameViewModel, onCashier: () -> Unit, onShelves: () -> 
         NameBadge(s.heroName)
 
         Box(Modifier.at(17f, 10f)) { BackCircle({ vm.goTo(Screen.Work) }) }
-        Bubble(
-            "${rank.title} · за смену ${rank.base} монет + премия.\n" +
-                (if (next != null) "До должности «${next.title}» смен: ${ShopWork.shiftsToNextRank(s)}." else "Это высшая должность!") +
-                "\nЛучшее: касса ${starsText(ShopWork.bestStars(s, ShopGame.CASHIER))} · стенд ${starsText(ShopWork.bestStars(s, ShopGame.SHELVES))}",
-            24f, 656f, 364f, 150f, size = 16f, align = TextAlign.Start
+        // Карточка и кнопки из макета «Работа (Магазин)»: должность, ставка, сколько до повышения, рекорды.
+        Art("fg4_shopwork_card", 5f, 577f, 399f, 177f, ContentScale.FillBounds)
+        StoreStatus(
+            rank.title, rank.base, next?.title, ShopWork.shiftsToNextRank(s),
+            ShopWork.bestStars(s, ShopGame.CASHIER), ShopWork.bestStars(s, ShopGame.SHELVES)
         )
-        DPill("Касса", 24f, 828f, 169f, 59f, fill = PillGreen, onClick = onCashier)
-        DPill("Стенд", 219f, 828f, 169f, 59f, fill = PillBlack, onClick = onShelves)
+        Art("fg4_btn_kassa_stend", 11f, 744f, 390f, 130f, ContentScale.FillBounds)
+        PressHit(20f, 762f, 180f, 94f, 40f, onClick = onCashier)
+        PressHit(211f, 762f, 180f, 94f, 40f, onClick = onShelves)
+    }
+}
+
+/** Три строки карточки «Работа (Магазин)»: текст с картинки стёрт, пишем настоящие значения в том же стиле. */
+@Composable
+private fun DesignScope.StoreStatus(rank: String, base: Int, next: String?, left: Int, cashier: Int, shelves: Int) {
+    val ink = Color(0xFF123A1C)
+    val green = Color(0xFF2E9B2E)
+    val size = fs(16.5f, false)
+    Row(Modifier.at(70f, 654f, 320f, 24f), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.clip(RoundedCornerShape(d(8f))).background(Color(0xFFD9F3CF)).padding(horizontal = d(5f))) {
+            Text(rank, color = ink, fontSize = size, fontWeight = FontWeight.Black, maxLines = 1)
+        }
+        Text(" · за смену $base монет + премия.", color = ink, fontSize = size, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+    }
+    Row(Modifier.at(70f, 680f, 320f, 24f), verticalAlignment = Alignment.CenterVertically) {
+        if (next != null) {
+            Text("До должности ", color = ink, fontSize = size, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text("«$next»", color = green, fontSize = size, fontWeight = FontWeight.Black, maxLines = 1)
+            Text(" смен: ", color = ink, fontSize = size, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text("$left", color = green, fontSize = fs(21f, false), fontWeight = FontWeight.Black, maxLines = 1)
+            Text(".", color = ink, fontSize = size, fontWeight = FontWeight.Bold)
+        } else {
+            Text("Это высшая должность!", color = green, fontSize = size, fontWeight = FontWeight.Black, maxLines = 1)
+        }
+    }
+    Row(Modifier.at(70f, 702f, 320f, 24f), verticalAlignment = Alignment.CenterVertically) {
+        Text("Лучшее: касса ", color = ink, fontSize = size, fontWeight = FontWeight.Bold, maxLines = 1)
+        StarRow(cashier)
+        Text(" · стенд ", color = ink, fontSize = size, fontWeight = FontWeight.Bold, maxLines = 1)
+        StarRow(shelves)
+    }
+}
+
+@Composable
+private fun DesignScope.StarRow(stars: Int) {
+    for (i in 0 until 3) {
+        Text(
+            "★", color = if (i < stars) Color(0xFFFFC21A) else Color(0xFFD5D2C4), fontSize = fs(19f, false),
+            style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0xFFB4651A), blurRadius = 1.5f))
+        )
     }
 }
 

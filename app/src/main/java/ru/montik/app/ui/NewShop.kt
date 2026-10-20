@@ -92,6 +92,16 @@ private val SHOP_FRAMES = mapOf(
     )
 )
 
+/** Где на кадре пилюля с монетами (левый верхний угол), по кадрам макета. */
+private val SHOP_PILL = mapOf(
+    GrocerySection.HOME to (271f to 49f),
+    GrocerySection.VEG to (269f to 53f),
+    GrocerySection.FRUITS to (269f to 52f),
+    GrocerySection.FOOD to (269f to 55f),
+    GrocerySection.DRINKS to (274f to 53f),
+    GrocerySection.READY to (269f to 54f)
+)
+
 /** Плитки разделов слева направо: «Все», «Овощи», «Фрукты», «Молочное», «Напитки», «Готовые продукты». */
 private val TILE_SECTIONS = listOf(
     GrocerySection.HOME, GrocerySection.VEG, GrocerySection.FRUITS,
@@ -117,11 +127,14 @@ fun NewShopPage(
     val coins = rememberCountUp(s.coins)
     DesignCanvas {
         FrameArt(f.art)
-        // Монеты и «+» — заработать.
-        Box(Modifier.at(317f, f.headerY + 7f, 40f, 18f), contentAlignment = Alignment.CenterStart) {
-            Text("$coins", color = NsInk, fontSize = fs(if (coins >= 1000) 13f else 17f, false), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        // Монеты — как в макете: белая пилюля 129×44 с тенью, монета 52×52 слева, число по центру пилюли.
+        val (px, py) = SHOP_PILL.getValue(section)
+        Box(Modifier.at(px, py, 129f, 44f).shadow(d(4f), RoundedCornerShape(d(22f))).clip(RoundedCornerShape(d(22f))).background(Color.White))
+        Art("fg4_coin", px - 12f, py - 4f, 52f, 52f, ContentScale.Fit)
+        Box(Modifier.at(px + 40f, py, 85f, 44f), contentAlignment = Alignment.Center) {
+            Text(spaced(coins), color = NsInk, fontSize = fs(if (coins >= 10000) 17f else 21f, false), fontWeight = FontWeight.Black, maxLines = 1, softWrap = false)
         }
-        PressHit(352f, f.headerY - 4f, 40f, 40f, 20f) { vm.goTo(Screen.Work) }
+        Hit(px - 12f, py - 4f, 141f, 52f) { vm.goTo(Screen.Work) }
         // Стрелка «назад»: из раздела — на «Главную» магазина, с «Главной» — в комнату.
         PressHit(16f, f.headerY - 6f, 52f, 52f, 26f) { if (section == GrocerySection.HOME) vm.back() else go(GrocerySection.HOME) }
 
@@ -129,8 +142,8 @@ fun NewShopPage(
         if (section == GrocerySection.HOME) {
             for ((id, x) in listOf("oats" to 44f, "milk" to 335f)) {
                 val price = Grocery.item(id)?.price ?: continue
-                Box(Modifier.at(x, 760f, 28f, 21f), contentAlignment = Alignment.CenterStart) {
-                    Text("$price", color = NsInk, fontSize = fs(12.5f, false), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                Box(Modifier.at(x + 1f, 757.3f, 28f, 21f), contentAlignment = Alignment.CenterStart) {
+                    Text("$price", color = NsInk, fontSize = fs(13.5f, false), fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
                 }
             }
         }

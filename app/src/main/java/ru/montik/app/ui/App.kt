@@ -160,6 +160,14 @@ private fun Overlays(vm: GameViewModel) {
         // Итоги первого кошелька — окна из макета (обед, игрушка, рюкзак) с настоящими суммами.
         scenarioResult != null && scenarioResult.scenario.id == Scenarios.INTRO ->
             NewWalletResult(scenarioResult, s.coins) { vm.dismissScenarioResult() }
+        // «Находка в кармане»: если отложил — окно итога из макета.
+        scenarioResult != null && scenarioResult.scenario.id == Scenarios.FOUND &&
+            scenarioResult.scenario.choices.indexOf(scenarioResult.choice) == 0 ->
+            DimPopup(
+                "fg4_find_result", 1131f / 1391f,
+                listOf(PopZone(0.08f, 0.80f, 0.84f, 0.15f) { vm.dismissScenarioResult() }),
+                onBack = { vm.dismissScenarioResult() }, maxWidth = 360.dp
+            )
         scenarioResult != null -> ScenarioResultDialog(scenarioResult) { vm.dismissScenarioResult() }
         shiftResult != null -> NewPayslipPopup(shiftResult) { vm.dismissShiftResult() }
         medal != null -> NewMedalPopup(medal) { vm.dismissMedal() }
@@ -190,6 +198,18 @@ private fun PendingScenarioOverlay(vm: GameViewModel, scenario: Scenario) {
     // «Первый кошелёк Монтика» — окно из нового макета: три варианта — кнопки из картинки.
     if (scenario.id == Scenarios.INTRO) {
         NewWalletPopup(scenario) { i -> vm.choose(scenario.id, i) }
+        return
+    }
+    // «Находка в кармане» — окно из макета: две кнопки-варианта на картинке.
+    if (scenario.id == Scenarios.FOUND) {
+        DimPopup(
+            "fg4_find_ask", 1374f / 1145f,
+            listOf(
+                PopZone(0.06f, 0.57f, 0.88f, 0.15f) { vm.choose(scenario.id, 0) },
+                PopZone(0.06f, 0.74f, 0.88f, 0.15f) { vm.choose(scenario.id, 1) }
+            ),
+            onBack = { }
+        )
         return
     }
     Box(

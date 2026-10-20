@@ -56,12 +56,12 @@ private val CITY_FRAMES = mapOf(
     "moscow" to CityFrame(
         "fg3_city_moscow",
         listOf(
-            floatArrayOf(186f, 383f, 92f, 42f),  // red
-            floatArrayOf(262f, 328f, 112f, 42f), // vdnh (Останкинская башня)
-            floatArrayOf(60f, 334f, 78f, 34f),   // mgu
-            floatArrayOf(166f, 600f, 76f, 34f),  // arbat
-            floatArrayOf(34f, 482f, 100f, 36f),  // mall
-            floatArrayOf(310f, 518f, 82f, 46f)   // park
+            floatArrayOf(150f, 352f, 130f, 80f),  // red — Красная площадь
+            floatArrayOf(255f, 300f, 140f, 70f),  // vdnh — Останкинская башня
+            floatArrayOf(40f, 300f, 110f, 70f),   // mgu
+            floatArrayOf(140f, 555f, 110f, 56f),  // arbat
+            floatArrayOf(20f, 440f, 130f, 80f),   // mall
+            floatArrayOf(290f, 470f, 110f, 72f)   // park
         ),
         emptyList(),
         floatArrayOf(152f, 785f, 231f, 44f),
@@ -90,6 +90,16 @@ private val CITY_FRAMES = mapOf(
     )
 )
 
+/** Подписи на карте Москвы (центры подписей из кадра) — вокруг выбранной рисуется зелёная рамка. */
+private val MOSCOW_LABELS = listOf(
+    floatArrayOf(184f, 362f, 82f, 34f),   // Красная площадь
+    floatArrayOf(256f, 308f, 96f, 38f),   // Останкинская башня
+    floatArrayOf(66f, 317f, 58f, 30f),    // МГУ
+    floatArrayOf(160f, 567f, 66f, 30f),   // Арбат
+    floatArrayOf(36f, 455f, 94f, 32f),    // ТЦ Афимолл
+    floatArrayOf(306f, 486f, 76f, 38f)    // Парк Горького
+)
+
 @Composable
 fun hasCityTask(city: String): Boolean =
     CITY_FRAMES[city]?.let { rememberHasArt(it.art) } == true
@@ -105,8 +115,11 @@ fun CityTaskScreen(vm: GameViewModel, task: CityTasks.Task) {
     BackHandler(enabled = shown != null) { shown = null }
     DesignCanvas {
         FrameArt(frame.art)
-        Box(Modifier.at(frame.coin.first - 18f, frame.coin.second - 10f, 40f, 20f), contentAlignment = Alignment.Center) {
-            Text("$coins", color = Color(0xFF14246B), fontSize = fs(if (coins >= 1000) 13f else 16.5f, false), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        // Стрелка «назад»: задание нужно решить — Монтик напоминает.
+        PressHit(14f, 30f, 56f, 56f, 28f) { vm.say("Сначала помоги Монтику выбрать — потом прогулка по городу!") }
+        // Число монет — по центру пилюли справа от монеты.
+        Box(Modifier.at(frame.coin.first - 23f, frame.coin.second - 12f, 48f, 24f), contentAlignment = Alignment.Center) {
+            Text(spaced(coins), color = Color(0xFF14246B), fontSize = fs(if (coins >= 10000) 13f else 16f, false), fontWeight = FontWeight.Black, maxLines = 1, softWrap = false)
         }
         task.options.forEachIndexed { i, option ->
             val r = frame.spots.getOrNull(i) ?: return@forEachIndexed
@@ -114,8 +127,9 @@ fun CityTaskScreen(vm: GameViewModel, task: CityTasks.Task) {
             if (task.city == "moscow") {
                 // На карте — светящееся кольцо вокруг выбранной булавки.
                 if (selected) {
+                    val l = MOSCOW_LABELS[i]
                     Box(
-                        Modifier.at(r[0] - 4f, r[1] - 4f, r[2] + 8f, r[3] + 8f).clip(RoundedCornerShape(d(16f)))
+                        Modifier.at(l[0] - 3f, l[1] - 3f, l[2] + 6f, l[3] + 6f).clip(RoundedCornerShape(d(12f)))
                             .border(d(3f), Color(0xFF39C24A), RoundedCornerShape(d(16f)))
                             .background(Color(0x3339C24A))
                     )

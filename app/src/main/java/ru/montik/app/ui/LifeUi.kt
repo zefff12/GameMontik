@@ -1,5 +1,7 @@
 package ru.montik.app.ui
 
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.offset
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -98,6 +100,11 @@ private fun days(n: Int): String = when {
 
 @Composable
 fun BudgetScreen(vm: GameViewModel) {
+    // «План бюджета» из макета.
+    if (rememberHasArt("fg4_budget_clean")) {
+        NewBudgetScreen(vm)
+        return
+    }
     val s = vm.state
     val plan = Life.currentPlan(s)
     val first = Life.periodFirstDay(s.period)
@@ -413,40 +420,52 @@ fun GoalsScreen(vm: GameViewModel) {
 
     if (withdrawAsk > 0) {
         val p = Goals.previewWithdraw(s, withdrawAsk)
-        AlertDialog(
-            onDismissRequest = { withdrawAsk = 0 },
-            containerColor = MontikColors.Surface,
-            title = { NoDialogDim(); Text("Снять из копилки?") },
-            text = {
-                Column {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        for (a in listOf(10, 50)) ChipButton("$a", s.piggy >= a) { withdrawAsk = a }
-                        ChipButton("Всё") { withdrawAsk = s.piggy }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text("Снять: ${p.amount}", style = MaterialTheme.typography.titleMedium)
-                    Text("В копилке станет ${p.savedAfter} вместо ${p.savedBefore}.", style = MaterialTheme.typography.bodyMedium)
-                    if (goal != null) {
-                        Text(
-                            when {
-                                p.daysBefore == null -> "Срок до цели пока не посчитать."
-                                p.daysAfter == null -> "Цель станет дальше."
-                                else -> "Цель отодвинется: было ≈ ${days(p.daysBefore)}, станет ≈ ${days(p.daysAfter)}."
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MontikColors.Bad
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
+        val close = { withdrawAsk = 0 }
+        // Окно «Снять из копилки» в стиле макета: копилка, кнопки 10 / 50 / Всё, итог и две кнопки.
+        DimPopup(
+            "fg4_withdraw", 1312f / 1369f,
+            listOf(
+                PopZone(0.181f, 0.591f, 0.200f, 0.111f) { if (s.piggy >= 10) withdrawAsk = 10 },
+                PopZone(0.400f, 0.591f, 0.200f, 0.111f) { if (s.piggy >= 50) withdrawAsk = 50 },
+                PopZone(0.620f, 0.591f, 0.200f, 0.111f) { withdrawAsk = s.piggy },
+                PopZone(0.181f, 0.849f, 0.322f, 0.110f, close),
+                PopZone(0.518f, 0.849f, 0.322f, 0.110f) {
                     vm.piggyOut(p.amount)
                     withdrawAsk = 0
-                }) { Text("Да, снять ${p.amount}") }
-            },
-            dismissButton = { TextButton(onClick = { withdrawAsk = 0 }) { Text("Оставить в копилке") } }
-        )
+                },
+                PopZone(0.796f, 0.120f, 0.103f, 0.099f, close)
+            ),
+            onBack = close, maxWidth = 380.dp, onScrim = close
+        ) { w, h ->
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            fun sp(v: Float) = with(density) { (h * v).toSp() }
+            // Недоступные суммы — бледнее.
+            listOf(10 to 0.181f, 50 to 0.400f).forEach { (a, x) ->
+                if (s.piggy < a) {
+                    Box(
+                        Modifier.offset(w * x, h * 0.591f).size(w * 0.200f, h * 0.111f)
+                            .clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.55f))
+                    )
+                }
+            }
+            Column(
+                Modifier.offset(w * 0.385f, h * 0.726f).size(w * 0.41f, h * 0.108f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("Снять: ${p.amount}", color = Color(0xFF102152), fontSize = sp(0.040f), fontWeight = FontWeight.Black, maxLines = 1, lineHeight = sp(0.044f))
+                Text("В копилке станет ${p.savedAfter}", color = Color(0xFF3B4A66), fontSize = sp(0.027f), fontWeight = FontWeight.Bold, maxLines = 1)
+                if (goal != null) {
+                    Text(
+                        when {
+                            p.daysBefore == null -> "Срок до цели пока не посчитать"
+                            p.daysAfter == null -> "Цель станет дальше"
+                            else -> "Цель: ≈ ${days(p.daysBefore)} → ≈ ${days(p.daysAfter)}"
+                        },
+                        color = MontikColors.Bad, fontSize = sp(0.024f), fontWeight = FontWeight.Bold, maxLines = 1
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -756,13 +775,13 @@ fun HousingScreen(vm: GameViewModel) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CoinIcon(Modifier.size(20.dp)); Text(" Аренда ${h.rent}", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.width(12.dp))
-                    Text("⭐ Переезд ${h.moveCost}", style = MaterialTheme.typography.bodyMedium)
+                    Text("🚚 Переезд ${h.moveCost}", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.width(12.dp))
-                    Text("🌱 Нужно звёзд ${h.starsNeeded}", style = MaterialTheme.typography.bodyMedium)
+                    Text("🔓 С ${h.levelNeeded} уровня", style = MaterialTheme.typography.bodyMedium)
                 }
-                if (h.starsNeeded > 0 && h.level > s.housing) {
+                if (h.levelNeeded > 1 && h.level > s.housing) {
                     Spacer(Modifier.height(4.dp))
-                    Bar(s.stars / h.starsNeeded.toFloat(), MontikColors.Good)
+                    Bar((ru.montik.app.game.Progress.levelOf(s.xp) / h.levelNeeded.toFloat()).coerceAtMost(1f), MontikColors.Good)
                 }
                 Spacer(Modifier.height(8.dp))
                 when {

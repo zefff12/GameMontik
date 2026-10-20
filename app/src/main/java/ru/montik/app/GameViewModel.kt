@@ -203,14 +203,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun back() = goTo(
         when (screen) {
             // «Монетки» открыты из магазина продуктов — назад возвращаем в магазин.
-            Screen.Work -> if (fromScreen == Screen.Grocery) Screen.Grocery else Screen.Phone
+            // Из работы и из «Жилья» — сразу на главный экран.
+            Screen.Work -> if (fromScreen == Screen.Grocery) Screen.Grocery else Screen.Home
             Screen.Phone, Screen.Home -> Screen.Home
             Screen.Kitchen -> Screen.Home
             // Копилка, подушка и план, открытые из кошелька, возвращают в кошелёк.
             Screen.Cushion, Screen.Budget, Screen.Goals -> if (fromScreen == Screen.Wallet) Screen.Wallet else Screen.Phone
             Screen.Travel, Screen.Diary, Screen.Bank, Screen.Grocery, Screen.Parent, Screen.Barter,
             Screen.Store, Screen.BankJob, Screen.Business, Screen.Shop,
-            Screen.Tasks, Screen.Housing, Screen.Glossary, Screen.Market -> Screen.Phone
+            Screen.Housing -> Screen.Home
+            Screen.Tasks, Screen.Glossary, Screen.Market -> Screen.Phone
             else -> Screen.Home
         }
     )

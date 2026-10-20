@@ -155,10 +155,12 @@ fun GroceryScreen(vm: GameViewModel) {
         GroceryFallback(vm)
         return
     }
+    var tab by rememberSaveable { mutableStateOf(0) }
     if (!cartOpen && hasNewShop()) {
         // Новый макет магазина: страницы-кадры, «Монетки» и «Профиль» на нижней панели.
-        var tab by rememberSaveable { mutableStateOf(0) }
         NewShopPage(vm, section, tab, onTab = { tab = it }, go = go, onCart = { cartOpen = true })
+    } else if (cartOpen && hasNewCart()) {
+        NewCartScreen(vm, onBack = { cartOpen = false }, onHome = { go(GrocerySection.HOME) }, onTab = { t -> tab = t; cartOpen = false })
     } else if (cartOpen) {
         CartScreen(vm, onBack = { cartOpen = false }, onHome = { go(GrocerySection.HOME) }, onCatalog = { cartOpen = false; catalogOpen = true })
     } else {
@@ -490,7 +492,6 @@ private fun CartRow(item: GroceryItem, n: Int, onMinus: () -> Unit, onPlus: () -
                 Spacer(Modifier.width(3.dp))
                 CoinIcon(Modifier.size(16.dp))
             }
-            if (n > 1) Text("${item.price} / шт.", color = ShopGrey, fontSize = 11.sp)
         }
         Text("🗑", Modifier.clickable(onClick = onDrop).padding(6.dp), fontSize = 18.sp, color = ShopGrey)
     }

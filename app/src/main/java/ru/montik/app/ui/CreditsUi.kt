@@ -1,5 +1,6 @@
 package ru.montik.app.ui
 
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -63,13 +64,13 @@ fun CreditsSection(vm: GameViewModel) {
                     enabled = s.coins > 0,
                     shape = MontikShapes.Chip,
                     modifier = Modifier.weight(1f)
-                ) { Text("Внести 20") }
+                ) { Text("Внести 20", maxLines = 1, softWrap = false, fontSize = 18.sp) }
                 OutlinedButton(
                     onClick = { vm.payCredit(credit.id, credit.left) },
                     enabled = s.coins >= credit.left,
                     shape = MontikShapes.Chip,
                     modifier = Modifier.weight(1f)
-                ) { Text("Вернуть всё") }
+                ) { Text("Вернуть всё", maxLines = 1, softWrap = false, fontSize = 18.sp) }
             }
         }
     }

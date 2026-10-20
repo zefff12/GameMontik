@@ -290,12 +290,14 @@ fun BankScreen(vm: GameViewModel) {
         NewBankScreen(vm) { credits = true }
         return
     }
-    ScreenScaffold("🏦 Банк", vm) {
+    ScreenScaffold(if (credits) "💳 Кредиты" else "🏦 Банк", vm, onBack = if (credits) ({ credits = false }) else null) {
         val s = vm.state
+        // Со страницы «Кредиты» вклад уже виден на главной странице банка — здесь только кредиты.
+        if (!credits) {
         MontikCard(color = MontikColors.SurfaceTint) {
             Text(
-                "Банк хранит деньги и платит за это проценты: каждый день он добавляет " +
-                    "${Rules.DEPOSIT_PERCENT}% к вкладу каждую неделю. " +
+                "Банк хранит деньги и платит за это проценты: каждую неделю он добавляет " +
+                    "${Rules.DEPOSIT_PERCENT}% к вкладу. " +
                     "Так деньги начинают работать сами.",
                 style = MaterialTheme.typography.bodyLarge
             )
@@ -312,7 +314,7 @@ fun BankScreen(vm: GameViewModel) {
             Spacer(Modifier.height(6.dp))
             Text(
                 if (s.deposit > 0) "Через ${GameEngine.daysToInterest(s)} дн. банк добавит ${coinsText(GameEngine.weeklyInterest(s))}."
-                else "Пока на вкладе пусто. Положи от ${Rules.MIN_DEPOSIT} монет — и завтра их станет больше.",
+                else "Пока на вкладе пусто. Положи от ${Rules.MIN_DEPOSIT} монет — и через неделю их станет больше.",
                 style = MaterialTheme.typography.bodyLarge
             )
             Text("В кошельке: ${coinsText(s.coins)}", style = MaterialTheme.typography.bodyMedium, color = MontikColors.InkSoft)
@@ -350,6 +352,7 @@ fun BankScreen(vm: GameViewModel) {
                 )
             }
         }
+        }
 
         // Старый долг из прежней версии игры (если был) — его можно вернуть здесь.
         if (s.debt > 0) {
@@ -362,13 +365,13 @@ fun BankScreen(vm: GameViewModel) {
                         enabled = s.coins > 0,
                         shape = MontikShapes.Chip,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Вернуть 20") }
+                    ) { Text("Вернуть 20", maxLines = 1, softWrap = false, fontSize = 18.sp) }
                     OutlinedButton(
                         onClick = { vm.repayLoan(s.debt) },
                         enabled = s.coins >= s.debt,
                         shape = MontikShapes.Chip,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Вернуть всё") }
+                    ) { Text("Вернуть всё", maxLines = 1, softWrap = false, fontSize = 18.sp) }
                 }
             }
         }

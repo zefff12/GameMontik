@@ -74,6 +74,11 @@ data class GameState(
     val deposit: Int = 0,
     /** Сколько полных дней деньги лежат на вкладе с последнего начисления (каждые 7 — плюс 5%). */
     val depositDays: Int = 0,
+    /** Недельная цель работы: номер игровой недели и сколько смен в ней. */
+    val workWeek: Int = 0,
+    val workWeekShifts: Int = 0,
+    /** Сколько дней подряд были полезные действия (каждые 7 — опыт). */
+    val usefulStreak: Int = 0,
     /** Сколько монет нужно вернуть банку по кредиту (0 — долга нет). */
     val debt: Int = 0,
     val energy: Int = 100,
@@ -384,6 +389,9 @@ object StateCodec {
         p["cushion"] = s.cushion.toString()
         p["deposit"] = s.deposit.toString()
         p["depositDays"] = s.depositDays.toString()
+        p["workWeek"] = s.workWeek.toString()
+        p["workWeekShifts"] = s.workWeekShifts.toString()
+        p["usefulStreak"] = s.usefulStreak.toString()
         p["debt"] = s.debt.toString()
         p["energy"] = s.energy.toString()
         p["food"] = s.food.toString()
@@ -584,6 +592,9 @@ object StateCodec {
                 cushion = int("cushion", 0).coerceAtLeast(0),
                 deposit = int("deposit", 0).coerceAtLeast(0),
                 depositDays = int("depositDays", 0).coerceIn(0, 6),
+                workWeek = int("workWeek", 0).coerceAtLeast(0),
+                workWeekShifts = int("workWeekShifts", 0).coerceAtLeast(0),
+                usefulStreak = int("usefulStreak", 0).coerceIn(0, 6),
                 debt = int("debt", 0).coerceAtLeast(0),
                 energy = pct("energy", 100),
                 food = pct("food", 100),

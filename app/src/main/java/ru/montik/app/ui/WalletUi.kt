@@ -27,8 +27,9 @@ fun NewWalletScreen(vm: GameViewModel) {
         ArtPart("fg3_wallet_i631", 27f, 240f, 358f, 154f, Modifier.slide(p0))
         ArtPart("fg3_wallet_i632", 19f, 381f, 366f, 156f, Modifier.slide(p1))
         ArtPart("fg3_wallet_i633", 24f, 537f, 361f, 134f, Modifier.slide(p2))
-        // В кадре нет стрелки «назад» — выход системной кнопкой «назад» или нажатием на заголовок.
-        Hit(60f, 30f, 290f, 200f) { vm.back() }
+        // Стрелка «назад» из макета (image 716).
+        ArtPart("fg4_back", 19f, 45f, 71f, 70f)
+        PressHit(24f, 50f, 60f, 60f, 30f) { vm.back() }
         PressHit(60f, 280f, 310f, 80f, 40f) { vm.goTo(Screen.Goals) }
         PressHit(55f, 425f, 315f, 80f, 40f) { vm.goTo(Screen.Cushion) }
         PressHit(55f, 570f, 315f, 80f, 40f) { vm.goTo(Screen.Budget) }
@@ -52,11 +53,12 @@ fun NewCushionScreen(vm: GameViewModel) {
         Box(Modifier.at(347f, 79f, 44f, 28f), contentAlignment = Alignment.Center) {
             Text("$cushion", color = Color(0xFF4A1C0E), fontSize = fs(if (cushion >= 1000) 15f else 19f, false), fontWeight = FontWeight.Black, maxLines = 1)
         }
-        Box(Modifier.at(219f, 389f, 110f, 24f), contentAlignment = Alignment.CenterStart) {
-            Text(": $coins ${coinWord(coins)}", color = Color(0xFF14246B), fontSize = fs(12.5f, false), fontWeight = FontWeight.Bold, maxLines = 1)
+        // «В запасе: N монет» — то же число, что в шапке (сколько уже в подушке).
+        Box(Modifier.at(150f, 389f, 220f, 26f), contentAlignment = Alignment.CenterStart) {
+            Text("В запасе: $cushion ${coinWord(cushion)}", color = Color(0xFF14246B), fontSize = fs(14f, false), fontWeight = FontWeight.Bold, maxLines = 1)
         }
         fun put(amount: Int) {
-            if (amount <= 0 || s.coins < amount) vm.say("В кошельке ${s.coins} ${coinWord(s.coins)} — столько не отложить.")
+            if (amount <= 0 || s.coins < amount) vm.say("Не хватает монет, чтобы отложить. В запасе: ${s.cushion} ${coinWord(s.cushion)}.")
             else { fb.coin(); vm.cushionIn(amount) }
         }
         PressHit(46f, 431f, 104f, 37f, 18f) { put(10) }
@@ -64,7 +66,7 @@ fun NewCushionScreen(vm: GameViewModel) {
         PressHit(263f, 431f, 102f, 37f, 18f) { put(50) }
         PressHit(36f, 474f, 324f, 52f, 26f) { put(s.coins) }
         fun take(amount: Int) {
-            if (amount <= 0 || s.cushion <= 0) vm.say("В подушке пока пусто.")
+            if (amount <= 0 || s.cushion <= 0) vm.say("В запасе: 0 монет — брать пока нечего.")
             else { fb.tap(); vm.cushionOut(minOf(amount, s.cushion)) }
         }
         PressHit(22f, 643f, 165f, 41f, 20f) { take(10) }

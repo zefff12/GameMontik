@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -73,8 +74,9 @@ fun GameOverlay(onDismiss: () -> Unit, content: @Composable () -> Unit) {
 }
 
 /**
- * Карточка-объяснение: иконка Монтика, пилюля с заголовком, текст и кнопка.
- * [title] — что объясняем, [body] — текст, [buttonText] — подпись кнопки.
+ * Карточка-объяснение в стиле новых плашек «Монтик объясняет»: кремовое окно в толстой зелёной рамке,
+ * сверху кружок с иконкой и зелёная пилюля, крупный заголовок, текст, Монтик и выпуклая кнопка «Понятно!».
+ * [headline] — подпись в пилюле (первый символ, если это эмодзи, уходит в кружок).
  */
 @Composable
 fun LessonCard(
@@ -84,41 +86,90 @@ fun LessonCard(
     buttonText: String = "Понятно!",
     onButton: () -> Unit
 ) {
-    Column(
+    val ink = Color(0xFF0E2A12)
+    val navy = Color(0xFF13235E)
+    val icon = headline.substringBefore(' ').takeIf { it.isNotEmpty() && !it[0].isLetter() }
+    val label = if (icon != null) headline.substringAfter(' ') else headline
+    Box(
         Modifier
-            .padding(horizontal = 18.dp)
+            .padding(horizontal = 16.dp)
             .widthIn(max = 420.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(Color.White)
-            .border(3.dp, Color(0xFF7DB46C), RoundedCornerShape(28.dp))
-            .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            Modifier
+                .padding(top = 30.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(34.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF6BD844), Color(0xFF1F9A25))))
+                .padding(6.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFFFFFDF0), Color(0xFFF4FBE6))))
+                .padding(start = 18.dp, end = 18.dp, top = 40.dp, bottom = 16.dp)
+        ) {
             Box(
-                Modifier.size(52.dp).clip(CircleShape).background(Color(0xFFEFF8E4)),
+                Modifier.clip(RoundedCornerShape(18.dp)).background(Color(0xFFEAF5D8))
+                    .padding(horizontal = 12.dp, vertical = 2.dp)
+            ) {
+                Text(title, color = ink, fontFamily = MontikFont, fontWeight = FontWeight.Black, fontSize = 27.sp, lineHeight = 30.sp)
+            }
+            Spacer(Modifier.height(8.dp))
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                Text(body, color = navy, fontFamily = MontikFont, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 21.sp)
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LessonButton(buttonText, Modifier.weight(1f), onButton)
+                Spacer(Modifier.size(10.dp))
+                ArtImage("fg_hero_white", Modifier.size(70.dp), androidx.compose.ui.layout.ContentScale.Fit) { Text("🐰", fontSize = 40.sp) }
+            }
+        }
+        // Шапка поверх рамки: кружок с иконкой и пилюля «Монтик объясняет».
+        Row(Modifier.padding(start = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(60.dp).clip(CircleShape)
+                    .background(Brush.verticalGradient(listOf(Color(0xFF6BD844), Color(0xFF1F9A25))))
+                    .padding(4.dp).clip(CircleShape).background(Color(0xFFF6FFEC)),
                 contentAlignment = Alignment.Center
             ) {
-                FigIcon("fg_ui_hs_montik", "🐰", 44.dp)
+                if (icon != null) Text(icon, fontSize = 28.sp) else FigIcon("fg_ui_hs_montik", "🐰", 44.dp)
             }
-            Spacer(Modifier.size(10.dp))
             Box(
-                Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Color(0xFFBFE6AC))
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                Modifier.padding(start = 0.dp).height(42.dp)
+                    .clip(RoundedCornerShape(topEnd = 21.dp, bottomEnd = 21.dp))
+                    .background(Color(0xFF1F9A25))
+                    .padding(top = 3.dp, bottom = 3.dp, end = 3.dp)
+                    .clip(RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp))
+                    .background(Brush.verticalGradient(listOf(Color(0xFFF1FCE4), Color(0xFFC6EEA8))))
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Text(headline, color = MontikColors.Ink, fontWeight = FontWeight.Bold, fontFamily = MontikFont, fontSize = 17.sp)
+                Text(label, color = ink, fontFamily = MontikFont, fontWeight = FontWeight.Black, fontSize = 17.sp, maxLines = 1)
             }
         }
-        Spacer(Modifier.height(12.dp))
-        Text(title, style = MaterialTheme.typography.titleLarge, color = MontikColors.Ink)
-        Spacer(Modifier.height(8.dp))
-        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-            Text(body, style = MaterialTheme.typography.bodyLarge, color = MontikColors.Ink)
-        }
-        Spacer(Modifier.height(14.dp))
-        BigButton(buttonText, onClick = onButton)
+    }
+}
+
+/** Выпуклая зелёная кнопка «Понятно! ✓», как на новых плашках. */
+@Composable
+private fun LessonButton(text: String, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Box(
+        modifier.height(54.dp).clip(shape).background(Color(0xFF1B7A22))
+            .padding(start = 3.dp, end = 3.dp, top = 3.dp, bottom = 5.dp)
+            .clip(shape)
+            .background(Brush.verticalGradient(listOf(Color(0xFF8BE36A), Color(0xFF2FA534))))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            "$text ✓",
+            style = androidx.compose.ui.text.TextStyle(
+                color = Color.White, fontFamily = MontikFont, fontWeight = FontWeight.Black, fontSize = 21.sp,
+                shadow = androidx.compose.ui.graphics.Shadow(Color(0xFF1B6B20), androidx.compose.ui.geometry.Offset(0f, 3f), 3f)
+            ),
+            maxLines = 1
+        )
     }
 }
 
@@ -135,41 +186,3 @@ fun LessonDialog(lesson: ru.montik.app.game.Lesson, onDismiss: () -> Unit) {
     }
 }
 
-/** Знакомство по шагам: тот же стиль карточки, текст шага плавно меняется. */
-@Composable
-fun TourCard(step: Int, last: Boolean, onNext: () -> Unit, onSkip: () -> Unit) {
-    Column(
-        Modifier
-            .padding(horizontal = 18.dp)
-            .widthIn(max = 420.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(Color.White)
-            .border(3.dp, Color(0xFF7DB46C), RoundedCornerShape(28.dp))
-            .padding(horizontal = 20.dp, vertical = 18.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Color(0xFFBFE6AC))
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
-            ) {
-                Text("Знакомство · ${step + 1} из ${TOUR_STEPS.size}", color = MontikColors.Ink, fontWeight = FontWeight.Bold, fontFamily = MontikFont)
-            }
-            FigIcon("fg_ui_hs_montik", "🐰", 44.dp)
-        }
-        Spacer(Modifier.height(12.dp))
-        AnimatedContent(targetState = step, transitionSpec = { stepTransform() }, label = "tourText") { current ->
-            Text(TOUR_STEPS[current], style = MaterialTheme.typography.titleMedium, color = MontikColors.Ink, textAlign = TextAlign.Start)
-        }
-        Spacer(Modifier.height(14.dp))
-        BigButton(if (last) "Понятно!" else "Дальше", onClick = onNext)
-        if (!last) {
-            Spacer(Modifier.height(4.dp))
-            Box(Modifier.fillMaxWidth().clickable(onClick = onSkip).padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
-                Text("Пропустить", color = MontikColors.InkSoft, fontFamily = MontikFont, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}

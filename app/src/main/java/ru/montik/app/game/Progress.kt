@@ -23,10 +23,13 @@ object Progress {
         return total
     }
 
+    /** Уровней в игре — 20 (у каждого своя плашка «Новый уровень!»). */
+    const val MAX_LEVEL = 20
+
     fun levelOf(xp: Int): Int {
         var level = 1
         var rest = xp.coerceAtLeast(0)
-        while (rest >= toNext(level)) {
+        while (level < MAX_LEVEL && rest >= toNext(level)) {
             rest -= toNext(level)
             level++
         }
@@ -39,30 +42,46 @@ object Progress {
         return (xp - levelStart(level)) to toNext(level)
     }
 
-    /** Доля шкалы уровня 0..1. */
+    /** Доля шкалы уровня 0..1 (на последнем уровне шкала полная). */
     fun fraction(xp: Int): Float {
+        if (levelOf(xp) >= MAX_LEVEL) return 1f
         val (have, need) = inLevel(xp)
-        return have.toFloat() / need
+        return (have.toFloat() / need).coerceIn(0f, 1f)
     }
 
-    // Сколько опыта за что даётся.
+    // Сколько опыта за что даётся (документ «Исправление механики уровня»). Зарплата — отдельно от опыта.
+    /** Работа: выполнить рабочее задание (смену). */
     const val XP_SHIFT = 15
-    const val XP_SHOP_STAR = 5
-    const val XP_TASK_GREAT = 30
-    const val XP_TASK_OK = 20
-    const val XP_TASK_BAD = 10
-    const val XP_SAVE_DAY = 5
-    const val XP_PERIOD_STAR = 15
-    const val XP_GOAL = 50
-    const val XP_AD_DECLINED = 10
-    const val XP_GOOD_CHOICE = 10
-    const val XP_MOVE_UP = 40
+    /** Работа: недельная цель — 5 смен за игровую неделю. */
+    const val XP_WORK_WEEK = 60
+    const val WORK_WEEK_SHIFTS = 5
+    /** Работа: новая должность или карьерный этап (магазин, банк, повышение). */
+    const val XP_CAREER = 100
+    /** Бюджет: создать первый бюджет (план). */
+    const val XP_FIRST_BUDGET = 50
+    /** Бюджет: дневной учёт расходов (день, в котором были доходы или траты). */
+    const val XP_DAY_LOG = 10
+    /** Бюджет: недельный обзор (итоги периода). */
+    const val XP_WEEK_REVIEW = 25
+    /** Копилка: создать цель, дойти до 50%, закрыть цель. */
+    const val XP_GOAL_SET = 30
+    const val XP_GOAL_HALF = 40
+    const val XP_GOAL = 100
+    /** Профиль: создать персонажа. */
+    const val XP_HERO = 30
+    /** Ежедневное задание. */
+    const val XP_DAILY_TASK = 10
+    /** 7 дней подряд с полезными действиями. */
+    const val XP_STREAK = 40
+    const val STREAK_DAYS = 7
+    /** Переезд в лучшее жильё — новый этап жизни. */
+    const val XP_MOVE_UP = 100
 
-    fun taskXp(rating: Rating): Int = when (rating) {
-        Rating.GREAT -> XP_TASK_GREAT
-        Rating.OK -> XP_TASK_OK
-        Rating.BAD -> XP_TASK_BAD
-    }
+    fun taskXp(@Suppress("UNUSED_PARAMETER") rating: Rating): Int = XP_DAILY_TASK
+
+    /** Карьерный этап: открыта работа в магазине, в банке, повышения в магазине. */
+    fun careerStage(state: GameState): Int =
+        (if (ShopWork.unlocked(state)) 1 else 0) + (if (BankWork.unlocked(state)) 1 else 0) + ShopWork.rank(state).ordinal
 
     /** Новый уровень ждёт поздравления (его ещё не показывали). */
     fun levelUpPending(state: GameState): Int? =

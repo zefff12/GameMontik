@@ -42,26 +42,43 @@ class ProgressTest {
     }
 
     @Test
-    fun workTasksSavingAndAdsGiveExperience() {
+    fun experienceFollowsTheLevelDocument() {
         val s = fed(started().copy(coins = 200))
         val shift = GameEngine.work(s, Job.HELPER, true).outcome.state
         assertEquals(s.xp + Progress.XP_SHIFT, shift.xp)
 
         val task = Tasks.unlocked(s).first()
         val first = Tasks.complete(s, task.id, TaskOutcome(Rating.GREAT, "", "")).state
-        assertEquals(s.xp + Progress.XP_TASK_GREAT, first.xp)
+        assertEquals(s.xp + Progress.XP_DAILY_TASK, first.xp)
         val again = Tasks.complete(first, task.id, TaskOutcome(Rating.GREAT, "", "")).state
         assertEquals("за повтор опыта нет", first.xp, again.xp)
 
-        // Опыт за накопления — раз в день, сколько бы раз ни откладывать.
-        val once = Goals.deposit(s, 10).state
-        val twice = Goals.deposit(once, 10).state
-        assertEquals(s.xp + Progress.XP_SAVE_DAY, twice.xp)
-        val cushion = GameEngine.depositCushion(twice, 10).state
-        assertEquals(twice.xp, cushion.xp)
+        // Копилка: цель +30 (один раз), половина пути +40, закрытая цель +100.
+        val goal = Goals.choose(s, "trip_moscow").state
+        assertEquals(s.xp + Progress.XP_GOAL_SET, goal.xp)
+        val half = Goals.deposit(goal, 80).state
+        assertEquals(goal.xp + Progress.XP_GOAL_HALF, half.xp)
+        val more = Goals.deposit(half, 10).state
+        assertEquals("половина засчитывается один раз", half.xp, more.xp)
 
+        // Реклама опыта не даёт — его нет в списке.
         val withAd = s.copy(pendingAd = Ads.all.first().id)
-        assertEquals(s.xp + Progress.XP_AD_DECLINED, Ads.decline(withAd).state.xp)
+        assertEquals(s.xp, Ads.decline(withAd).state.xp)
+
+        // 20 уровней — дальше шкала не растёт.
+        assertEquals(Progress.MAX_LEVEL, Progress.levelOf(1_000_000))
+        assertEquals(1f, Progress.fraction(1_000_000))
+    }
+
+    @Test
+    fun weeklyWorkGoalGivesSixtyOnce() {
+        var s = fed(started())
+        repeat(Progress.WORK_WEEK_SHIFTS - 1) { s = GameEngine.work(fed(s), Job.HELPER, false).outcome.state }
+        val before = s.xp
+        val stageBefore = Progress.careerStage(s)
+        s = GameEngine.work(fed(s), Job.HELPER, false).outcome.state
+        val career = if (Progress.careerStage(s) > stageBefore) Progress.XP_CAREER else 0
+        assertEquals(before + Progress.XP_SHIFT + Progress.XP_WORK_WEEK + career, s.xp)
     }
 
     // ───────────────────────── Звёзды смены в магазине ─────────────────────────
@@ -78,7 +95,7 @@ class ProgressTest {
         assertFalse("первая смена — ещё не рекорд", first.payslip!!.record)
         val s1 = first.outcome.state
         assertEquals(75, s1.shopBest[ShopGame.CASHIER.name])
-        assertEquals(s.xp + Progress.XP_SHIFT + 2 * Progress.XP_SHOP_STAR, s1.xp)
+        assertEquals(s.xp + Progress.XP_SHIFT, s1.xp)
         assertEquals(2, ShopWork.bestStars(s1, ShopGame.CASHIER))
         assertEquals(0, ShopWork.bestStars(s1, ShopGame.SHELVES))
 
@@ -104,7 +121,6 @@ class ProgressTest {
         assertEquals(coins + 15, help.state.coins)
         assertEquals(90, help.state.energy)
         assertNull(help.state.pendingEvent)
-        assertTrue(help.state.xp > s.xp)
         // Событие можно встретить снова.
         assertTrue(GameEngine.choose(help.state.copy(pendingEvent = Scenarios.NEIGHBOR), Scenarios.NEIGHBOR, 1).outcome.ok)
 

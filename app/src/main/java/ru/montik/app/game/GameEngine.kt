@@ -175,6 +175,8 @@ object GameEngine {
 
         /** Медали, которые уже были до действия: по разнице видно, какие заработаны только что. */
         private val medalsBefore = Medals.earned(s).map { it.id }.toSet()
+        private val shiftsBefore = s.shifts + s.shopShifts + s.bankShifts
+        private val careerBefore = Progress.careerStage(s)
 
         fun say(text: String) {
             messages += text
@@ -251,11 +253,37 @@ object GameEngine {
             if (after > before) log("новый уровень Монтика: $after")
         }
 
-        /** Опыт за накопления — не чаще раза в игровой день, чтобы его нельзя было накрутить. */
+        /** Накопления опыта сами по себе не дают — опыт за копилку начисляется за цели. */
         fun xpForSaving() {
             if (s.xpSaveDay >= s.day) return
             s = s.copy(xpSaveDay = s.day)
-            xp(Progress.XP_SAVE_DAY)
+        }
+
+        /** Опыт один раз за событие: [mark] запоминается навсегда. */
+        fun xpOnce(mark: String, n: Int, text: String? = null) {
+            if (mark in s.milestones) return
+            s = s.copy(milestones = s.milestones + mark)
+            xp(n)
+            if (text != null) say(text)
+        }
+
+        /** Смены за неделю (недельная цель) и новый карьерный этап. */
+        private fun workXp() {
+            val done = s.shifts + s.shopShifts + s.bankShifts - shiftsBefore
+            if (done > 0) {
+                val week = (s.day - 1) / 7
+                val before = if (s.workWeek == week) s.workWeekShifts else 0
+                val now = before + done
+                s = s.copy(workWeek = week, workWeekShifts = now)
+                if (before < Progress.WORK_WEEK_SHIFTS && now >= Progress.WORK_WEEK_SHIFTS) {
+                    xp(Progress.XP_WORK_WEEK)
+                    say("🏆 Недельная цель работы выполнена: ${Progress.WORK_WEEK_SHIFTS} смен за неделю! +${Progress.XP_WORK_WEEK} опыта.")
+                }
+            }
+            if (Progress.careerStage(s) > careerBefore) {
+                xp(Progress.XP_CAREER)
+                say("🎓 Новый карьерный этап! +${Progress.XP_CAREER} опыта.")
+            }
         }
 
         fun mood(delta: Int, why: String) {
@@ -292,6 +320,7 @@ object GameEngine {
 
         fun done(ok: Boolean = true): Outcome {
             if (!ok) return Outcome(s, messages.toList(), lessons.toList(), false)
+            workXp()
             markMilestones()
             val fresh = Medals.earned(s).filter { it.id !in medalsBefore }
             for (m in fresh) log("медаль «${m.title}»")
@@ -638,7 +667,7 @@ object GameEngine {
         val bestBefore = state.shopBest[game.name]
         val record = bestBefore != null && perf > bestBefore
         if (bestBefore == null || perf > bestBefore) c.s = c.s.copy(shopBest = c.s.shopBest + (game.name to perf))
-        c.xp(Progress.XP_SHIFT + stars * Progress.XP_SHOP_STAR)
+        c.xp(Progress.XP_SHIFT)
         val slip = Payslip(
             "${rank.title}: ${game.title.lowercase()}", rank.base, eff, appearance, bonus, gross, tax, net, notes,
             stars = stars, record = record, careerPercent = career
@@ -792,6 +821,21 @@ object GameEngine {
             c.say("🪙 Ты отложил не меньше 20% заработка — так делают настоящие планировщики!")
         }
         c.log("день закончен: +${diary.earned}, −${diary.spent}, отложено ${diary.saved}")
+        // Опыт: дневной учёт расходов и 7 дней подряд с полезными действиями.
+        val useful = diary.earned > 0 || diary.spent > 0 || diary.saved > 0
+        if (useful) {
+            c.xp(Progress.XP_DAY_LOG)
+            val streak = c.s.usefulStreak + 1
+            if (streak >= Progress.STREAK_DAYS) {
+                c.s = c.s.copy(usefulStreak = 0)
+                c.xp(Progress.XP_STREAK)
+                c.say("🔥 ${Progress.STREAK_DAYS} дней подряд с полезными делами! +${Progress.XP_STREAK} опыта.")
+            } else {
+                c.s = c.s.copy(usefulStreak = streak)
+            }
+        } else {
+            c.s = c.s.copy(usefulStreak = 0)
+        }
 
         // Банк: каждую неделю на вкладе (7 полных дней) вклад вырастает на 5%.
         if (c.s.deposit > 0) {
@@ -888,7 +932,7 @@ object GameEngine {
             daySaved = c.s.daySaved + amount,
             pSaved = c.s.pSaved + amount
         )
-        c.say("🛟 Отложено $amount монет. В подушке: ${c.s.cushion}.")
+        c.say("🛟 Отложено $amount ${coinWordRu(amount)}. В запасе: ${c.s.cushion} ${coinWordRu(c.s.cushion)}.")
         c.xpForSaving()
         c.log("отложил в подушку $amount")
         c.teach(Lesson.CUSHION)
@@ -907,7 +951,7 @@ object GameEngine {
 
     fun withdrawCushion(state: GameState, amount: Int): Outcome {
         if (amount <= 0) return fail(state, "Выбери, сколько монет забрать.")
-        if (amount > state.cushion) return fail(state, "В подушке только ${state.cushion} монет.")
+        if (amount > state.cushion) return fail(state, "В запасе только ${state.cushion} ${coinWordRu(state.cushion)}.")
         val c = Ctx(state)
         c.s = c.s.copy(
             coins = c.s.coins + amount,
@@ -915,7 +959,7 @@ object GameEngine {
             daySaved = c.s.daySaved - amount,
             pSaved = c.s.pSaved - amount
         )
-        c.say("Из подушки взято $amount монет. Помни: она нужна для трудных дней, а не для игрушек.")
+        c.say("Из подушки взято $amount ${coinWordRu(amount)}. В запасе: ${c.s.cushion} ${coinWordRu(c.s.cushion)}. Помни: она нужна для трудных дней, а не для игрушек.")
         c.log("забрал из подушки $amount")
         return c.done()
     }
@@ -942,7 +986,7 @@ object GameEngine {
             daySaved = c.s.daySaved + amount,
             pSaved = c.s.pSaved + amount
         )
-        c.say("🏦 На вклад положено $amount монет. Через ${daysToInterest(c.s)} дн. банк добавит ${weeklyInterest(c.s)} (5% за неделю).")
+        c.say("🏦 На вклад положено $amount ${coinWordRu(amount)}. Через ${daysToInterest(c.s)} дн. банк добавит ${weeklyInterest(c.s)} ${coinWordRu(weeklyInterest(c.s)).replace("монета", "монету")} (5% за неделю).")
         c.log("вклад +$amount")
         c.teach(Lesson.DEPOSIT)
         if (Medals.DEPOSIT_MADE !in c.s.milestones) {
@@ -1091,7 +1135,6 @@ object GameEngine {
             c.s = c.s.copy(daySaved = c.s.daySaved + choice.save, pSaved = c.s.pSaved + choice.save)
         }
         if (scenario.id != Scenarios.INTRO) {
-            c.xp(if (choice.rating == Rating.GREAT) Progress.XP_GOOD_CHOICE else if (choice.rating == Rating.OK) 5 else 0)
         }
         c.log("«${scenario.title}»: ${choice.text}")
         return ChoiceResult(c.done(), choice, choice.rating)
@@ -1172,7 +1215,11 @@ object GameEngine {
     }
 
     /** Отметить, что рисунок готов: игра начинается. */
-    fun markCreated(state: GameState): GameState = state.copy(created = true)
+    fun markCreated(state: GameState): GameState {
+        val s = state.copy(created = true)
+        if ("hero_xp" in s.milestones) return s
+        return s.copy(xp = s.xp + Progress.XP_HERO, milestones = s.milestones + "hero_xp")
+    }
 
     /** Цель игры на сейчас — для главного экрана и родителя. */
     fun currentGoal(state: GameState): String {
@@ -1196,5 +1243,17 @@ object GameEngine {
         val next = Destinations.all.firstOrNull { it.id !in state.completedTrips && it.id != "nn" }  // Нижний Новгород — родной город, его нет на карте
             ?: return "🏆 Монтик объехал всю страну и отдохнул у моря. Ты справился! " + BusinessEngine.goal(state)
         return "${next.emoji} Накопить на билет в ${next.name}: ${state.coins} из ${next.ticket} монет"
+    }
+}
+
+/** «1 монета», «3 монеты», «5 монет». */
+internal fun coinWordRu(n: Int): String {
+    val m100 = n % 100
+    val m10 = n % 10
+    return when {
+        m100 in 11..14 -> "монет"
+        m10 == 1 -> "монета"
+        m10 in 2..4 -> "монеты"
+        else -> "монет"
     }
 }

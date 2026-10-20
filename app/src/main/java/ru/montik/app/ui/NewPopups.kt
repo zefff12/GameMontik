@@ -101,49 +101,28 @@ fun DimPopup(
     }
 }
 
-/** Новый уровень (image 666). Число уровня — то же, что в игре (на картинке нарисована цифра «2»). */
+/** Новый уровень: у каждого из 20 уровней своя плашка из макета (fg4_lvl_2 … fg4_lvl_20). */
 @Composable
 fun NewLevelPopup(vm: GameViewModel, level: Int) {
     val fb = rememberFeedback()
     LaunchedEffect(level) { fb.fanfare() }
+    val n = level.coerceIn(2, ru.montik.app.game.Progress.MAX_LEVEL)
     Box {
         DimPopup(
-            "fg3_p_666", 1536f / 1024f,
-            listOf(PopZone(0.30f, 0.66f, 0.40f, 0.20f) { vm.markLevelSeen() }),
+            "fg4_lvl_$n", 1536f / 1024f,
+            listOf(PopZone(0f, 0f, 1f, 1f) { vm.markLevelSeen() }),
             onBack = { vm.markLevelSeen() },
             onScrim = { vm.markLevelSeen() }
-        ) { w, h ->
-            if (level != 2) LevelDigit(level, w, h)
-        }
+        )
         Confetti(level)
     }
 }
 
-/** Цифра уровня поверх нарисованной «2» — в том же стиле (зелёная с белой обводкой). */
-@Composable
-private fun LevelDigit(level: Int, w: Dp, h: Dp) {
-    val density = LocalDensity.current
-    Box(
-        Modifier.offset(w * 0.50f, h * 0.21f).size(w * 0.17f, h * 0.27f).background(Color(0xFFF6F9E2)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            "$level",
-            style = TextStyle(
-                color = Color(0xFF2E9B2E),
-                fontSize = with(density) { (h * 0.24f).toSp() },
-                fontWeight = FontWeight.Black,
-                shadow = Shadow(Color.White, blurRadius = 6f)
-            )
-        )
-    }
-}
-
-/** Новая медаль (image 554). */
+/** Новая медаль: у каждой медали своя картинка в стиле «Путешественника» (fg4_medal_<id>). */
 @Composable
 fun NewMedalPopup(medal: Medal, onDismiss: () -> Unit) {
-    // На картинке макета нарисована медаль «Первая зарплата» — для остальных медалей своё окно.
-    if (medal.id != "first_pay") {
+    val art = if (medal.id == "first_pay") "fg3_p_medal" else "fg4_medal_${medal.id.lowercase()}"
+    if (!rememberHasArt(art)) {
         MedalDialog(medal, onDismiss)
         return
     }
@@ -151,7 +130,7 @@ fun NewMedalPopup(medal: Medal, onDismiss: () -> Unit) {
     LaunchedEffect(medal.id) { fb.fanfare() }
     Box {
         DimPopup(
-            "fg3_p_medal", 1080f / 1456f,
+            art, 1080f / 1456f,
             listOf(PopZone(0.08f, 0.77f, 0.84f, 0.18f, onDismiss)),
             onBack = onDismiss, maxWidth = 320.dp, onScrim = onDismiss
         )
@@ -173,42 +152,77 @@ fun NewLessonPopup(lesson: Lesson, onDismiss: () -> Unit) {
             listOf(PopZone(0.13f, 0.77f, 0.76f, 0.19f, onDismiss)),
             onBack = onDismiss
         )
+        // Новые плашки «Монтик объясняет» из макета.
+        Lesson.NEEDS, Lesson.DIARY, Lesson.CHANGE, Lesson.DEPOSIT, Lesson.PLAN -> DimPopup(
+            when (lesson) {
+                Lesson.NEEDS -> "fg5_l_needs"
+                Lesson.DIARY -> "fg5_l_diary"
+                Lesson.CHANGE -> "fg5_l_change"
+                Lesson.DEPOSIT -> "fg5_l_deposit"
+                else -> "fg5_l_plan"
+            },
+            1313f / 1198f,
+            listOf(PopZone(0.04f, 0.76f, 0.92f, 0.23f, onDismiss)),
+            onBack = onDismiss, onScrim = onDismiss
+        )
+        Lesson.WORK, Lesson.GOAL, Lesson.CUSHION, Lesson.ADS -> DimPopup(
+            when (lesson) {
+                Lesson.WORK -> "fg4_l_work"
+                Lesson.GOAL -> "fg4_l_goal"
+                Lesson.CUSHION -> "fg4_l_cushion"
+                else -> "fg4_l_ads"
+            },
+            1313f / 1198f,
+            listOf(PopZone(0.50f, 0.78f, 0.48f, 0.18f, onDismiss)),
+            onBack = onDismiss, onScrim = onDismiss
+        )
         else -> LessonDialog(lesson, onDismiss)
     }
 }
 
 /**
- * Расчётный листок (image 563) — когда смена ровно такая, как нарисовано (помощник мастера,
- * 42 начислено, налог 5, на руки 37). Иначе — обычный листок с настоящими суммами.
+ * Расчётный листок из макета: звёзды (1–3), должность, «Начислено», «Налог 13%», «На руки».
+ * Суммы и должность с картинки стёрты и пишутся игрой — для любой смены.
  */
 @Composable
 fun NewPayslipPopup(ui: ShiftUi, onDismiss: () -> Unit) {
     val slip = ui.slip
-    val matches = slip.gross == 42 && slip.tax == 5 && slip.net == 37 && ui.correct == true
-    if (!matches) {
-        PayslipDialog(ui, onDismiss)
-        return
+    val stars = slip.stars ?: when (ui.correct) {
+        true -> 3
+        null -> 2
+        false -> 1
     }
     val fb = rememberFeedback()
     LaunchedEffect(slip) { fb.coin() }
     DimPopup(
-        "fg3_p_payslip", 1221f / 1289f,
-        listOf(PopZone(0.17f, 0.82f, 0.66f, 0.16f, onDismiss)),
-        onBack = onDismiss
-    )
-}
-
-/** Знакомство (image 565): одна плашка — «Дальше» и «Пропустить» закрывают её. */
-@Composable
-fun NewTourPopup(onDone: () -> Unit) {
-    DimPopup(
-        "fg3_p_tour", 1536f / 1024f,
-        listOf(
-            PopZone(0.20f, 0.43f, 0.58f, 0.19f, onDone),
-            PopZone(0.33f, 0.62f, 0.30f, 0.10f, onDone)
-        ),
-        onBack = onDone
-    )
+        "fg4_slip${stars.coerceIn(1, 3)}", 1118f / 1407f,
+        listOf(PopZone(0.08f, 0.78f, 0.84f, 0.16f, onDismiss)),
+        onBack = onDismiss, maxWidth = 340.dp
+    ) { w, h ->
+        val density = LocalDensity.current
+        fun sp(v: Float) = with(density) { (h * v).toSp() }
+        Box(Modifier.offset(w * (318f / 1118f), h * (557f / 1407f)).size(w * (690f / 1118f), h * (120f / 1407f)), contentAlignment = Alignment.CenterStart) {
+            Text(
+                slip.jobTitle, color = Color(0xFF0E2A1A), fontSize = sp(0.044f), fontWeight = FontWeight.ExtraBold,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        val rows = listOf(
+            Triple("${slip.gross}", 776f, Color(0xFF1767F2)),
+            Triple("−${slip.tax}", 886f, Color(0xFFE81E1E)),
+            Triple("${slip.net}", 1003f, Color(0xFF1C6E22))
+        )
+        rows.forEachIndexed { i, (text, cy, color) ->
+            val big = i == 2
+            val boxH = if (big) 100f else 70f
+            Box(
+                Modifier.offset(w * (560f / 1118f), h * ((cy - boxH / 2f) / 1407f)).size(w * (325f / 1118f), h * (boxH / 1407f)),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(text, color = color, fontSize = sp(if (big) 0.080f else 0.058f), fontWeight = FontWeight.Black, maxLines = 1)
+            }
+        }
+    }
 }
 
 /** Совет от Лобачевского (image 487). */

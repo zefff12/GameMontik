@@ -168,9 +168,9 @@ fun DesignScope.HomeHud(vm: GameViewModel, minutes: Int, kitchen: Boolean = fals
 
     // Три круглые шкалы: сон (силы), еда (сытость), вода.
     MeterRounds(s.energy, s.food, s.water)
-    PressHit(68f, 669f, 88f, 88f, 44f) { vm.goTo(Screen.Sleep) }
-    PressHit(162f, 669f, 88f, 88f, 44f) { vm.goTo(Screen.Fridge) }
-    PressHit(256f, 669f, 88f, 88f, 44f) { vm.goTo(Screen.Fridge) }
+    PressHit(70f, 668f, 88f, 88f, 44f) { vm.goTo(Screen.Sleep) }
+    PressHit(162f, 668f, 88f, 88f, 44f) { vm.goTo(Screen.Fridge) }
+    PressHit(256f, 668f, 88f, 88f, 44f) { vm.goTo(Screen.Fridge) }
 
     // В комнате — светлая плашка «Кухня»; на кухне — зелёные кнопки «Магазин» и «Комната» из макета.
     if (kitchen) {
@@ -212,39 +212,49 @@ private fun DesignScope.RoomPill(text: String, x: Float, y: Float, w: Float, onC
 }
 
 /**
- * Три круглые кнопки внизу (картинка 2172×724 → 281×94 в точке 66, 667). Дуги на картинке живые:
- * под ними — та же картинка без дуг, а полная поверх вырезается сектором по значению шкалы.
- * Дуга идёт от «8 часов» к «12 часам»: 160°…300° в градусах Compose (по часовой от «3 часов»).
+ * Три круглые кнопки внизу из макета: иконки сна, еды и воды (image 720) и цветные кольца вокруг (image 722).
+ * Кольцо — живая шкала: бледное целиком, яркое — по значению, от «12 часов» по часовой стрелке.
  */
 @Composable
 private fun DesignScope.MeterRounds(energy: Int, food: Int, water: Int) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val fullId = remember { context.resources.getIdentifier("fg3_home_bottom", "drawable", context.packageName) }
-    val emptyId = remember { context.resources.getIdentifier("fg3_home_bottom_empty", "drawable", context.packageName) }
-    if (fullId == 0 || emptyId == 0) return
-    val full = androidx.compose.ui.graphics.ImageBitmap.imageResource(fullId)
-    val empty = androidx.compose.ui.graphics.ImageBitmap.imageResource(emptyId)
+    val iconsId = remember { context.resources.getIdentifier("fg4_meter_icons", "drawable", context.packageName) }
+    val ringsId = remember { context.resources.getIdentifier("fg4_meter_rings", "drawable", context.packageName) }
+    if (iconsId == 0 || ringsId == 0) return
+    val icons = androidx.compose.ui.graphics.ImageBitmap.imageResource(iconsId)
+    val rings = androidx.compose.ui.graphics.ImageBitmap.imageResource(ringsId)
     val e by animateFloatAsState(energy.coerceIn(0, 100) / 100f, tween(600), label = "mE")
     val f by animateFloatAsState(food.coerceIn(0, 100) / 100f, tween(600), label = "mF")
     val w by animateFloatAsState(water.coerceIn(0, 100) / 100f, tween(600), label = "mW")
-    androidx.compose.foundation.Canvas(Modifier.at(66f, 667f, 281f, 94f)) {
+    // Рамки в макете: иконки 295×98, кольца 307×102 (на 6 левее); здесь в масштабе 281/295.
+    val k = 281f / 295f
+    val ix = 66f
+    val iy = 667f
+    val rx = ix - 6f * k
+    val rw = 307f * k
+    val rh = 102f * k
+    androidx.compose.foundation.Canvas(Modifier.at(rx, iy, rw, rh)) {
+        val u = size.width / rw
+        val fq = androidx.compose.ui.graphics.FilterQuality.Medium
+        drawImage(
+            icons, dstOffset = androidx.compose.ui.unit.IntOffset(((ix - rx) * u).toInt(), 0),
+            dstSize = androidx.compose.ui.unit.IntSize((281f * u).toInt(), (98f * k * u).toInt()), filterQuality = fq
+        )
         val dst = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
-        drawImage(empty, dstSize = dst, filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
-        val k = size.width / 2172f
-        val centers = listOf(381.5f, 1081f, 1784.5f)
+        drawImage(rings, dstSize = dst, alpha = 0.28f, filterQuality = fq)
+        val px = size.width / 2172f
+        val centers = floatArrayOf(388.5f, 1084f, 1779.5f)
         listOf(e, f, w).forEachIndexed { i, v ->
-            if (v <= 0.01f) return@forEachIndexed
-            val cx = centers[i] * k
-            val cy = 352.5f * k
-            val r = 380f * k
+            if (v <= 0.005f) return@forEachIndexed
+            val cx = centers[i] * px
+            val cy = 351.5f * px
+            val r = 360f * px
             val path = androidx.compose.ui.graphics.Path().apply {
                 moveTo(cx, cy)
-                arcTo(androidx.compose.ui.geometry.Rect(cx - r, cy - r, cx + r, cy + r), 160f, 140f * v, false)
+                arcTo(androidx.compose.ui.geometry.Rect(cx - r, cy - r, cx + r, cy + r), -90f, 359.9f * v, false)
                 close()
             }
-            clipPath(path) {
-                drawImage(full, dstSize = dst, filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
-            }
+            clipPath(path) { drawImage(rings, dstSize = dst, filterQuality = fq) }
         }
     }
 }
@@ -673,7 +683,7 @@ fun KitchenScreen(vm: GameViewModel) {
         }
     }) {
         // Монтик отвечает на нажатие: прыжок, звук и реплика. Управление — то же, что в комнате (новый макет).
-        TalkingMontik(vm, 96f, 350f, 220f, 230f, heroSize = 210f, bubbleX = 40f, bubbleY = 282f, bubbleW = 240f)
+        TalkingMontik(vm, 96f, 396f, 220f, 220f, heroSize = 205f, bubbleX = 98f, bubbleY = 300f, bubbleW = 190f)
         HomeHud(vm, minutes, kitchen = true)
     }
 }
@@ -785,7 +795,7 @@ fun PeriodSummaryDialog(vm: GameViewModel, result: PeriodResult) {
             val next = Life.nextHousing(s)
             if (next != null) {
                 Text(
-                    "Всего звёзд: ${s.stars}. До переезда «${next.title}» нужно ${next.starsNeeded}.",
+                    "Уровень ${ru.montik.app.game.Progress.levelOf(s.xp)}. «${next.title}» открывается на ${next.levelNeeded} уровне.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MontikColors.InkSoft
                 )
@@ -806,9 +816,9 @@ fun PeriodSummaryDialog(vm: GameViewModel, result: PeriodResult) {
 fun PlanFactTable(r: PeriodResult) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth()) {
-            Text("", Modifier.weight(1.4f))
-            Text("План", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
-            Text("Факт", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
+            Text("", Modifier.weight(2f))
+            Text("План", Modifier.weight(0.8f), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
+            Text("Факт", Modifier.weight(0.8f), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
         }
         PlanFactRow("🧾 Обязательное", if (r.planned) r.planNeeds else null, r.needs)
         PlanFactRow("🎁 Желаемое", if (r.planned) r.planWants else null, r.wants)
@@ -819,9 +829,10 @@ fun PlanFactTable(r: PeriodResult) {
 
 @Composable
 private fun PlanFactRow(label: String, plan: Int?, fact: Int) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        Text(label, Modifier.weight(1.4f), style = MaterialTheme.typography.bodyMedium)
-        Text(plan?.let { spaced(it) } ?: "—", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End)
-        Text(spaced(fact), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.End)
+    // Подпись в одну строку, числа — по правому краю и на одной линии с подписью.
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(2f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+        Text(plan?.let { spaced(it) } ?: "—", Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End, maxLines = 1)
+        Text(spaced(fact), Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, maxLines = 1)
     }
 }

@@ -289,28 +289,9 @@ fun MontikView(
         } else {
             MontikBunny(Modifier.fillMaxSize(), palette = palette)
         }
-        // Вещи из маркета поверх героя: шапка, очки, галстук, тапочки.
+        // Вещи из маркета поверх героя: шапка или кепка, очки, тапочки.
         OutfitLayer(state, boxSize, picture = useArt)
-        if (!still) {
-            state.worn[Slot.HEAD]?.let { Catalog.clothing(it) }?.let {
-                Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.TopCenter))
-            }
-            state.worn[Slot.BODY]?.let { Catalog.clothing(it) }?.let {
-                Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.Center).offset(y = boxSize * 0.12f))
-            }
-            state.worn[Slot.FEET]?.let { Catalog.clothing(it) }?.let {
-                Text(it.emoji, fontSize = emojiSize, modifier = Modifier.align(Alignment.BottomCenter))
-            }
-            if (state.energy < 30) {
-                Text("💤", fontSize = emojiSize, modifier = Modifier.align(Alignment.TopEnd))
-            }
-            if (state.food < 25) {
-                Text("🍽", fontSize = emojiSize, modifier = Modifier.align(Alignment.TopStart))
-            }
-            if (state.water < 25) {
-                Text("💧", fontSize = emojiSize, modifier = Modifier.align(Alignment.CenterStart))
-            }
-        }
+        // Одежда из маркета рисуется картинками (OutfitLayer); эмодзи поверх героя не накладываем.
     }
 }
 
@@ -614,7 +595,7 @@ fun FullBackground(content: @Composable () -> Unit) {
  */
 @Composable
 fun OutfitLayer(state: GameState, boxSize: Dp, picture: Boolean = false) {
-    // Порядок слоёв: тапочки, галстук, очки, головной убор — верхние вещи не прячутся под нижними.
+    // Порядок слоёв: тапочки, очки, головной убор — верхние вещи не прячутся под нижними.
     val order = listOf(ru.montik.app.game.WearSlot.FEET, ru.montik.app.game.WearSlot.NECK, ru.montik.app.game.WearSlot.EYES, ru.montik.app.game.WearSlot.HEAD)
     val worn = ru.montik.app.game.Market.worn(state).sortedBy { order.indexOf(it.slot) }
     if (worn.isEmpty()) return

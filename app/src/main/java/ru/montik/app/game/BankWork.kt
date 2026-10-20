@@ -112,7 +112,7 @@ object BankWork {
         val bestBefore = state.shopBest[KEY]
         val record = bestBefore != null && perf > bestBefore
         if (bestBefore == null || perf > bestBefore) c.s = c.s.copy(shopBest = c.s.shopBest + (KEY to perf))
-        c.xp(Progress.XP_SHIFT + stars * Progress.XP_SHOP_STAR)
+        c.xp(Progress.XP_SHIFT)
         val slip = Payslip("Банк: проверка купюр", base, eff, appearance, bonus, gross, tax, net, notes, stars = stars, record = record, careerPercent = career)
         return ShiftResult(c.done(), slip)
     }

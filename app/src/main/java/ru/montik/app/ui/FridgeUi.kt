@@ -158,11 +158,12 @@ private fun NewFridgeScreen(vm: GameViewModel) {
     DesignCanvas {
         FrameArt("fg3_fridge_clean", 0f, 0f, 412f, 918f)
         PressHit(338f, 56f, 50f, 50f, 25f) { vm.back() }
-        Box(Modifier.at(176f, 163f, 34f, 24f), contentAlignment = Alignment.CenterStart) {
-            Text("${s.food}", color = Color(0xFF14246B), fontSize = fs(13.5f, false), fontWeight = FontWeight.Bold, maxLines = 1)
+        // «Сытость N | Вода N»: надписи с картинки стёрты, строки пишутся целиком — ровно, без наложений.
+        Box(Modifier.at(120f, 162f, 92f, 26f), contentAlignment = Alignment.CenterStart) {
+            Text("Сытость ${s.food}", color = Color(0xFF14246B), fontSize = fs(14f, false), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
         }
-        Box(Modifier.at(292f, 163f, 34f, 24f), contentAlignment = Alignment.CenterStart) {
-            Text("${s.water}", color = Color(0xFF14246B), fontSize = fs(13.5f, false), fontWeight = FontWeight.Bold, maxLines = 1)
+        Box(Modifier.at(252f, 162f, 80f, 26f), contentAlignment = Alignment.CenterStart) {
+            Text("Вода ${s.water}", color = Color(0xFF14246B), fontSize = fs(14f, false), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
         }
         if (items.isEmpty()) {
             // Пустой холодильник: подпись и «В магазин» — картинка из макета.

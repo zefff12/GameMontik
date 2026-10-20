@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -107,7 +109,8 @@ private val RainbowColours = listOf(
 )
 
 /** Рамка обводки внутри холста, в долях холста: обычный экран (холст 250×336) и расширенный (375×727). */
-private val ART_SMALL = Rect(6f / 250f, 12f / 336f, (6f + 238f) / 250f, (12f + 289f) / 336f)
+// Обводка целиком внутри холста, по центру, с полями и в своих пропорциях (820×943).
+private val ART_SMALL = Rect(25f / 250f, 44f / 336f, (25f + 200f) / 250f, (44f + 230f) / 336f)
 private val ART_BIG = Rect(8f / 375f, 160f / 727f, (8f + 354f) / 375f, (160f + 426f) / 727f)
 
 @Composable
@@ -151,18 +154,19 @@ fun DrawingScreen(vm: GameViewModel) {
         PressHit(72f, 173f, 41f, 40f, 10f) { vm.redoStroke() }
         PressHit(227f, 168f, 38f, 39f, 10f) { expanded = true }
 
-        // Вкладки «Цвета» и «Палитра».
-        if (tab == 1) {
+        // Вкладки «Цвета» и «Палитра»: рисуем обе сами, ровно и одинаковыми, выбранная — синяя.
+        Box(Modifier.at(277f, 161f, 122f, 48f).background(Color(0xFFDDF4FD)))
+        listOf(Triple(281f, "Цвета", 0), Triple(341f, "Палитра", 1)).forEach { (tx, label, t) ->
+            val on = tab == t
             Box(
-                Modifier.at(283f, 166f, 58f, 36f).clip(RoundedCornerShape(d(18f))).background(Color.White)
-                    .border(d(1.5f), TileBorder, RoundedCornerShape(d(18f))),
+                Modifier.at(tx, 167f, 56f, 34f).shadow(d(if (on) 3f else 1f), RoundedCornerShape(d(17f)))
+                    .clip(RoundedCornerShape(d(17f)))
+                    .background(if (on) Brush.verticalGradient(listOf(TileTop, TileBottom)) else Brush.verticalGradient(listOf(Color.White, Color(0xFFF1FAFF))))
+                    .border(d(1.5f), if (on) Color(0xFF1F7FD0) else TileBorder, RoundedCornerShape(d(17f))),
                 contentAlignment = Alignment.Center
-            ) { Text("Цвета", color = Navy, fontSize = fs(12f, false), fontWeight = FontWeight.Bold) }
-            Box(
-                Modifier.at(344f, 166f, 57f, 36f).clip(RoundedCornerShape(d(18f)))
-                    .background(Brush.verticalGradient(listOf(TileTop, TileBottom))),
-                contentAlignment = Alignment.Center
-            ) { Text("Палитра", color = Color.White, fontSize = fs(11f, false), fontWeight = FontWeight.Bold) }
+            ) {
+                Text(label, color = if (on) Color.White else Navy, fontSize = fs(11.5f, false), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
         }
         PressHit(282f, 165f, 60f, 38f, 19f) { tab = 0 }
         PressHit(344f, 165f, 57f, 40f, 19f) { tab = 1 }
@@ -187,29 +191,35 @@ fun DrawingScreen(vm: GameViewModel) {
         }
 
         // Инструменты: кисть, маркер, заливка, ластик — со своей подсветкой выбранного.
-        Box(Modifier.at(13f, 573f, 262f, 83f).background(PanelBg))
-        ToolTile(17f, "Кисть", "fg_paint_ic_brush", tool == PaintTool.BRUSH) { tool = PaintTool.BRUSH }
-        ToolTile(82f, "Маркер", "fg_paint_ic_marker", tool == PaintTool.MARKER) { tool = PaintTool.MARKER }
-        ToolTile(146f, "Заливка", "fg_paint_ic_fill", tool == PaintTool.FILL) { tool = PaintTool.FILL }
-        ToolTile(211f, "Ластик", "fg_paint_ic_eraser", tool == PaintTool.ERASER) { tool = PaintTool.ERASER }
-
-        // Размер кисти: три точки, выбранная — в голубом кольце.
-        Box(Modifier.at(279f, 573f, 121f, 83f).background(PanelBg))
+        // Панель инструментов — точно по макету: голубая рамка 9…402 × 567…661, четыре плитки и «Размер».
         Box(
-            Modifier.at(284f, 582f, 112f, 72f).shadow(d(1f), RoundedCornerShape(d(14f)))
-                .clip(RoundedCornerShape(d(14f))).background(Color.White)
-                .border(d(1.5f), TileBorder, RoundedCornerShape(d(14f)))
+            Modifier.at(7f, 565f, 397f, 98f).clip(RoundedCornerShape(d(16f))).background(Color.White)
         )
-        DText("Размер", 284f, 588f, 112f, 12f, color = Navy, align = TextAlign.Center, softWrap = false, mono = false)
-        listOf(302f to 6f, 338f to 10f, 374f to 16f).forEachIndexed { i, (cx, dot) ->
-            val ring by animateFloatAsState(if (brush == i) 1f else 0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "size")
+        Box(
+            Modifier.at(9f, 567f, 393f, 94f).clip(RoundedCornerShape(d(14f))).background(Color(0xFFD2F2FE))
+                .border(d(2f), Color(0xFF7FCDE4), RoundedCornerShape(d(14f)))
+        )
+        val toolX = floatArrayOf(17f, 83.5f, 150f, 216.5f)
+        ToolTile(toolX[0], "Кисть", "fg_paint_ic_brush", tool == PaintTool.BRUSH) { tool = PaintTool.BRUSH }
+        ToolTile(toolX[1], "Маркер", "fg_paint_ic_marker", tool == PaintTool.MARKER) { tool = PaintTool.MARKER }
+        ToolTile(toolX[2], "Заливка", "fg_paint_ic_fill", tool == PaintTool.FILL) { tool = PaintTool.FILL }
+        ToolTile(toolX[3], "Ластик", "fg_paint_ic_eraser", tool == PaintTool.ERASER) { tool = PaintTool.ERASER }
+
+        // Размер кисти: белая карточка, три кружка, выбранный — в голубом кольце.
+        Box(
+            Modifier.at(282f, 578f, 110f, 72f).clip(RoundedCornerShape(d(12f))).background(Color(0xFFF2FCFF))
+                .border(d(1.5f), Color(0xFFD3ECF8), RoundedCornerShape(d(12f)))
+        )
+        DText("Размер", 282f, 585f, 110f, 12.5f, color = Navy, align = TextAlign.Center, softWrap = false, mono = false)
+        listOf(302f to 6f, 337f to 10f, 372f to 15f).forEachIndexed { i, (cx, dot) ->
+            val on = brush == i
             Box(
-                Modifier.at(cx - 14f, 608f, 28f, 28f)
-                    .graphicsLayer { alpha = ring; scaleX = 0.6f + 0.4f * ring; scaleY = 0.6f + 0.4f * ring }
-                    .clip(CircleShape).background(Color(0xFFDDF1FF)).border(d(2f), PaintBlue, CircleShape)
+                Modifier.at(cx - 13f, 611f, 26f, 26f).clip(CircleShape)
+                    .background(if (on) Color(0xFFE3F4FF) else Color(0xFFF7FDFF))
+                    .border(d(if (on) 2.2f else 1.2f), if (on) PaintBlue else Color(0xFFCFE8F4), CircleShape)
             )
-            Box(Modifier.at(cx - dot / 2f, 622f - dot / 2f, dot, dot).clip(CircleShape).background(Navy))
-            PressHit(cx - 17f, 604f, 34f, 36f, 17f) {
+            Box(Modifier.at(cx - dot / 2f, 624f - dot / 2f, dot, dot).clip(CircleShape).background(Navy))
+            PressHit(cx - 17f, 603f, 34f, 42f, 17f) {
                 brush = i
                 if (tool == PaintTool.FILL) tool = PaintTool.BRUSH
             }
@@ -264,36 +274,32 @@ private fun DesignScope.RainbowDot(cx: Float, cy: Float) {
 /** Плитка инструмента: выбранная — синяя, с белой подписью, и чуть больше; при нажатии сжимается. */
 @Composable
 private fun DesignScope.ToolTile(x: Float, label: String, icon: String, selected: Boolean, onClick: () -> Unit) {
-    val source = remember { MutableInteractionSource() }
-    val pressed by source.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        if (pressed) 0.8f else 1f,
-        tween(if (pressed) 60 else 200),
-        label = "tool"
-    )
-    val shape = RoundedCornerShape(d(12f))
+    // Плитка как в макете: выбранная — синяя сверху и светлая полоска с синей подписью снизу, в синей рамке;
+    // остальные — светлые, без рамки. Без «подпрыгивания».
+    val shape = RoundedCornerShape(d(10f))
     Box(
-        Modifier.at(x, 579f, 58f, 72f)
-            .graphicsLayer { alpha = scale }
-            .shadow(if (selected) d(4f) else d(1f), shape)
+        Modifier.at(x, 577f, 57f, 72f)
             .clip(shape)
-            .background(
-                if (selected) Brush.verticalGradient(listOf(TileTop, TileBottom))
-                else Brush.verticalGradient(listOf(Color.White, Color(0xFFEFF9FF)))
-            )
-            .border(d(1.5f), if (selected) Color(0xFF1F7FD0) else TileBorder, shape)
-            .clickable(interactionSource = source, indication = null, onClick = onClick),
-        contentAlignment = Alignment.TopCenter
+            .background(if (selected) Color(0xFFDFF5FF) else Color(0xFFE9F8FF))
+            .then(if (selected) Modifier.border(d(2f), Color(0xFF4FA3DA), shape) else Modifier)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(Modifier.height(d(3f)))
-            ArtImage(icon, Modifier.size(d(46f)), ContentScale.Fit) {}
+        if (selected) {
+            Box(
+                Modifier.fillMaxWidth().height(d(51f))
+                    .clip(RoundedCornerShape(topStart = d(10f), topEnd = d(10f), bottomStart = d(8f), bottomEnd = d(8f)))
+                    .background(Brush.verticalGradient(listOf(Color(0xFF3AACFF), Color(0xFF2196F3))))
+            )
+        }
+        ArtImage(icon, Modifier.padding(start = d(9.5f), top = d(6f)).size(d(38f)), ContentScale.Fit) {}
+        Box(Modifier.fillMaxWidth().padding(top = d(51f)).height(d(19f)), contentAlignment = Alignment.Center) {
             Text(
                 label,
-                color = if (selected) Color.White else Navy,
-                fontSize = fs(10.5f, false),
+                color = if (selected) Color(0xFF2B8FE3) else Navy,
+                fontSize = fs(11f, false),
                 fontWeight = FontWeight.Bold,
-                maxLines = 1
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

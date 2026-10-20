@@ -144,7 +144,7 @@ fun BarterScreen(vm: GameViewModel) {
                 Says("Ну что предложишь или что ты хочешь?", tapToContinue = false) {}
                 // Товары енота на белых карточках (кадр 56): мёд слева, чай справа.
                 Barter.goods.forEachIndexed { i, id ->
-                    val x = if (i == 0) 47f else 230f
+                    val x = if (i == 0) 56f else 240f
                     GoodCard(id, x, 723f, selected = false) {
                         fb.tap()
                         want = id
@@ -232,10 +232,10 @@ fun BarterScreen(vm: GameViewModel) {
 private fun DesignScope.Story(text: String, onNext: () -> Unit) {
     Hit(0f, 0f, DESIGN_W, DESIGN_H, onNext)
     Box(
-        Modifier.at(39f, 660f).requiredWidth(d(340f)).heightIn(min = d(175f))
+        Modifier.at(36f, 660f).requiredWidth(d(340f)).heightIn(min = d(175f))
             .clip(RoundedCornerShape(d(28f))).background(Color.White)
             .clickable(onClick = onNext)
-            .padding(start = d(17f), end = d(17f), top = d(20f), bottom = d(16f))
+            .padding(start = d(17f), end = d(17f), top = d(32f), bottom = d(16f))
     ) {
         Text(text, color = Color.Black, fontSize = fs(15f, false), lineHeight = fs(18.5f, false))
     }
@@ -376,7 +376,7 @@ private fun DesignScope.WantChip(id: String, x: Float, y: Float) {
 
 // ───────────────────────── Инвентарь (кадр 63) ─────────────────────────
 
-private val SLOTS = listOf(63f to 324f, 219f to 324f, 61f to 457f, 217f to 457f, 63f to 590f, 219f to 590f)
+private val SLOTS = listOf(63f to 324f, 219f to 324f, 63f to 457f, 219f to 457f, 63f to 590f, 219f to 590f)
 
 @Composable
 private fun DesignScope.Inventory(

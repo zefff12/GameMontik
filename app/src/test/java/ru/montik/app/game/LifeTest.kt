@@ -164,23 +164,28 @@ class LifeTest {
     // ───────────────────────── Уровни ─────────────────────────
 
     @Test
-    fun movingUpNeedsStarsAndMoneyMovingDownIsFree() {
-        val s = started().copy(coins = 300, stars = 5)
-        assertFalse(Life.moveTo(s, 2).ok)                                 // не хватает звёзд
-        assertFalse(Life.moveTo(s.copy(stars = 6, coins = 100), 2).ok)    // не хватает денег
-        assertFalse(Life.moveTo(s.copy(stars = 99), 3).ok)                // через уровень нельзя
-        val moved = Life.moveTo(s.copy(stars = 6), 2)
+    fun movingUpNeedsLevelAndMoneyMovingDownIsFree() {
+        val lvl8 = Progress.levelStart(8)
+        val s = started().copy(coins = 300, xp = lvl8 - 1)
+        assertFalse(Life.moveTo(s, 2).ok)                                 // уровень 7 — рано
+        assertFalse(Life.moveTo(s.copy(xp = lvl8, coins = 100), 2).ok)    // не хватает денег
+        assertFalse(Life.moveTo(s.copy(xp = 1_000_000), 3).ok)            // через ступень нельзя
+        val moved = Life.moveTo(s.copy(xp = lvl8), 2)
         assertTrue(moved.ok)
         assertEquals(2, moved.state.housing)
         assertEquals(0, moved.state.coins)
         assertEquals("Средний достаток", moved.state.home.levelTitle)
-        assertEquals(6 + Life.starsForHome(Housing.COZY), moved.state.stars)   // новое жильё — новые звёзды
         assertTrue(Medals.earned(moved.state).any { it.id == "newhome" })
+        // Третья квартира — с 16 уровня.
+        val rich = moved.state.copy(coins = 1000, xp = Progress.levelStart(16) - 1)
+        assertFalse(Life.moveTo(rich, 3).ok)
+        assertTrue(Life.moveTo(rich.copy(xp = Progress.levelStart(16)), 3).ok)
         val down = Life.moveTo(moved.state, 1)
         assertTrue(down.ok)
         assertEquals(1, down.state.housing)
-        assertEquals(3, Housing.values().size)                             // три уровня: скромный, средний, богатый
+        assertEquals(3, Housing.values().size)
     }
+
 
     @Test
     fun rentAndAdPricesGrowWithTheLevel() {

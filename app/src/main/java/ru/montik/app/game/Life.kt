@@ -25,7 +25,7 @@ enum class SpendKind(val title: String) {
 
 /**
  * Жильё = уровень Монтика. [rent] платится дважды в игровой месяц, [moveCost] — один раз при переезде,
- * [starsNeeded] — сколько звёзд привычек нужно, чтобы хозяин согласился сдать квартиру.
+ * [levelNeeded] — с какого уровня Монтика квартира открывается (уровни растут от опыта).
  * [room] и [kitchen] — префиксы картинок комнаты и кухни из макета.
  */
 enum class Housing(
@@ -35,23 +35,23 @@ enum class Housing(
     val emoji: String,
     val rent: Int,
     val moveCost: Int,
-    val starsNeeded: Int,
+    val levelNeeded: Int,
     val about: String,
     val room: String,
     val kitchen: String
 ) {
     MODEST(
-        1, "Скромная квартира", "Скромный достаток", "🏠", 150, 0, 0,
+        1, "Скромная квартира", "Скромный достаток", "🏠", 150, 0, 1,
         "Небольшая комната и простая кухня. Недорого — можно спокойно учиться планировать деньги.",
         "fg_room", "fg_kitchen1"
     ),
     COZY(
-        2, "Уютная квартира", "Средний достаток", "🏡", 400, 300, 6,
+        2, "Уютная квартира", "Средний достаток", "🏡", 400, 300, 8,
         "Уютная комната с книжной полкой и светлая современная кухня. Аренда выше — нужен стабильный доход.",
         "fg_room2", "fg_kitchen2"
     ),
     PENTHOUSE(
-        3, "Просторная квартира", "Богатый", "🏙", 800, 700, 15,
+        3, "Просторная квартира", "Богатый", "🏙", 800, 700, 16,
         "Большие окна, вид на Кремль и кухня с мрамором. Роскошно, но и расходы большие.",
         "fg_room3", "fg_kitchen3"
     );
@@ -291,6 +291,7 @@ object Life {
         c.s = c.s.copy(plan = plan)
         c.teach(Lesson.PLAN)
         if (confirm) {
+            c.xpOnce("first_budget", Progress.XP_FIRST_BUDGET, "📋 Первый бюджет составлен! +${Progress.XP_FIRST_BUDGET} опыта.")
             c.say("📋 План на период ${plan.period} готов: обязательное $needs, желаемое $wants, в копилку $savings. Остаток ${plan.left}.")
             c.log("план периода ${plan.period}: $needs / $wants / $savings")
             if (savings > 0 && savings * 100 >= available * 10) c.skill(Skill.PLANNER, 1)
@@ -377,11 +378,7 @@ object Life {
         c.log("итоги периода ${r.period}: звёзд ${r.stars} из 3")
         c.say("📊 Период ${r.period} закончился: звёзд привычек — ${r.stars} из 3. Посмотри итоги и составь новый план!")
         if (r.stars == 3) c.skill(Skill.PLANNER, 2)
-        c.xp(r.stars * Progress.XP_PERIOD_STAR)
-        val next = nextHousing(c.s)
-        if (next != null && stars >= next.starsNeeded && stars - r.stars < next.starsNeeded) {
-            c.say("${next.emoji} Звёзд хватает на переезд: «${next.title}». Загляни в раздел «Жильё»!")
-        }
+        c.xp(Progress.XP_WEEK_REVIEW)
         c.teach(Lesson.PLAN)
     }
 
@@ -394,17 +391,11 @@ object Life {
         target.level == state.housing -> "Монтик уже живёт здесь."
         target.level > state.housing + 1 -> "Сначала нужно пожить на уровне ${state.housing + 1}."
         target.level < state.housing -> null
-        state.stars < target.starsNeeded -> "Нужно звёзд привычек: ${target.starsNeeded}, а есть ${state.stars}."
+        Progress.levelOf(state.xp) < target.levelNeeded ->
+            "«${target.title}» откроется на ${target.levelNeeded} уровне. Сейчас уровень ${Progress.levelOf(state.xp)}."
         state.rentDebt > 0 -> "Сначала погаси долг за квартиру: ${state.rentDebt}."
         state.coins < target.moveCost -> "На переезд нужно ${target.moveCost} монет в кошельке, а есть ${state.coins}."
         else -> null
-    }
-
-    /** Сколько звёзд привычек даёт переезд в новое жильё. */
-    fun starsForHome(target: Housing): Int = when (target) {
-        Housing.MODEST -> 0
-        Housing.COZY -> 3
-        Housing.PENTHOUSE -> 5
     }
 
     /** Переезд. Вверх — за звёзды и деньги на переезд; вниз (подешевле) — бесплатно, если стало трудно платить. */
@@ -414,14 +405,12 @@ object Life {
         val c = GameEngine.Ctx(state)
         if (target.level > state.housing) {
             if (target.moveCost > 0) c.spend(target.moveCost, SpendKind.OTHER, "переезд")
-            // Новое жильё — новые звёзды: чем лучше жильё, тем выше уровень.
-            val bonus = starsForHome(target)
-            c.s = c.s.copy(housing = target.level, milestones = c.s.milestones + "moved_up", stars = c.s.stars + bonus)
+            c.s = c.s.copy(housing = target.level, milestones = c.s.milestones + "moved_up")
             c.mood(20, "Переезд в новую квартиру — большое событие!")
             c.xp(Progress.XP_MOVE_UP)
             c.say(
                 "${target.emoji} Монтик переехал: «${target.title}»! Теперь его уровень — «${target.levelTitle}». " +
-                    "Аренда — ${target.rent} монет дважды в месяц. +$bonus ⭐"
+                    "Аренда — ${target.rent} монет дважды в месяц."
             )
             c.log("переехал: ${target.title}")
         } else {

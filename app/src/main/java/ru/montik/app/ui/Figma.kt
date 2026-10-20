@@ -169,6 +169,12 @@ fun DesignScope.Art(
 ) {
     // Фон, продлённый на поля экрана, растягиваем по рамке: так нарисованное на картинке остаётся
     // на своих местах относительно кнопок поверх неё.
+    // Кадр во весь экран рисуем как FrameArt: поля вокруг — зеркальное продолжение картинки,
+    // без растяжения и без второго (по-другому обрезанного) фона под ним.
+    if (x <= 0.5f && x + w >= DESIGN_W - 0.5f && y <= 0.5f && y + h >= DESIGN_H - 2f) {
+        FrameArt(name, x, y, w, h)
+        return
+    }
     val full = bleed > 0f && x <= 0.5f && x + w >= DESIGN_W - 0.5f
     ArtImage(name, Modifier.at(x, y, w, h), if (full) ContentScale.FillBounds else scale) {}
 }

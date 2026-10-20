@@ -777,7 +777,7 @@ private val NEW_SKIN_ROW = listOf(
 )
 
 /** Середины кружков красок на столбике (x 367,6; радиус 19). */
-private val NEW_COLOR_Y = floatArrayOf(155.9f, 194.3f, 232.8f, 271.3f, 310.4f, 348.9f, 388.0f)
+private val NEW_COLOR_Y = floatArrayOf(156.6f, 195.2f, 233.8f, 273.2f, 314.1f, 355.3f, 397.0f)
 
 @Composable
 private fun NewCreationBoard(vm: GameViewModel) {
@@ -809,24 +809,34 @@ private fun NewCreationBoard(vm: GameViewModel) {
         }
 
         // Заголовок «Монтик» с табличкой имени; пока имени нет — на табличке нарисовано «Имя».
-        Art("fg3_cr_title", 86f, 48f, 239f, 118f, ContentScale.FillBounds)
-        Box(Modifier.at(167f, 129f, 134f, 25f), contentAlignment = Alignment.Center) {
-            if (vm.heroName.isNotBlank()) {
-                Box(Modifier.matchParentSize().clip(RoundedCornerShape(d(12f))).background(Color(0xFFFCEFD6)))
-            }
+        // Табличка имени: «Имя» с картинки стёрто, имя пишется ровно по центру таблички (148…263 × 127…156).
+        Art("fg3_cr_title_clean", 86f, 48f, 239f, 118f, ContentScale.FillBounds)
+        val nameInk = Color(0xFF6B4A33)
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.foundation.text.selection.LocalTextSelectionColors provides
+                androidx.compose.foundation.text.selection.TextSelectionColors(Color.Transparent, nameInk.copy(alpha = 0.25f))
+        ) {
             BasicTextField(
                 value = vm.heroName,
                 onValueChange = { vm.changeHeroName(it.take(Hero.MAX_NAME)) },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF6B4A33),
+                    color = nameInk,
                     textAlign = TextAlign.Center,
-                    fontSize = fs(17f, false),
+                    fontSize = fs(if (vm.heroName.length > 9) 13f else 16f, false),
                     fontWeight = FontWeight.Bold
                 ),
-                cursorBrush = SolidColor(Color(0xFF6B4A33)),
+                cursorBrush = SolidColor(nameInk),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.at(152f, 128f, 107f, 27f),
+                decorationBox = { inner ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        if (vm.heroName.isEmpty()) {
+                            Text("Имя", color = nameInk.copy(alpha = 0.45f), fontSize = fs(16f, false), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                        }
+                        inner()
+                    }
+                }
             )
         }
         Art("fg3_cr_back", -1f, 74f, 70f, 66f, ContentScale.FillBounds)
@@ -838,16 +848,22 @@ private fun NewCreationBoard(vm: GameViewModel) {
         Hero.PALETTE.forEachIndexed { i, rgb ->
             val cx = 367.6f
             val cy = NEW_COLOR_Y[i]
-            val r = 19f
+            val r = 20.5f
             val open = vm.colourOwned(rgb)
             // Открытая краска с нарисованным замком — рисуем чистый кружок поверх замка.
             if (open && i >= 4) {
+                // Кружок с замком на картинке закрываем целиком таким же кружком без замка, ровно по центру.
+                val rr = 22.5f
                 Box(
-                    Modifier.at(cx - r, cy - r, 2 * r, 2 * r).clip(CircleShape)
-                        .background(argbColor(rgb))
+                    Modifier.at(cx - rr, cy - rr, 2 * rr, 2 * rr).clip(CircleShape)
+                        .background(Color(0xFFE6F5FD))
+                )
+                Box(
+                    Modifier.at(cx - 20.5f, cy - 20.5f, 41f, 41f).clip(CircleShape)
+                        .background(Brush.radialGradient(listOf(argbColor(rgb).copy(alpha = 0.85f), argbColor(rgb))))
                         .border(d(2.5f), Color(0xFF14246B), CircleShape)
                 )
-                Box(Modifier.at(cx - r * 0.55f, cy - r * 0.62f, r * 0.5f, r * 0.3f).clip(CircleShape).background(Color.White.copy(alpha = 0.55f)))
+                Box(Modifier.at(cx - 11f, cy - 13f, 10f, 6f).clip(CircleShape).background(Color.White.copy(alpha = 0.55f)))
             }
             if (rgb == colour) {
                 Box(Modifier.at(cx - r - 4f, cy - r - 4f, 2 * r + 8f, 2 * r + 8f).clip(CircleShape).border(d(3.5f), PaintGreen, CircleShape))
@@ -878,7 +894,7 @@ private fun NewCreationBoard(vm: GameViewModel) {
             Box(
                 Modifier.at(cx - r, cy - r, 2 * r, 2 * r + 14f).clip(CircleShape).clickable {
                     if (open) vm.choosePreset(preset)
-                    else offer = SkinOffer("Монтик «${preset.title}»", Skins.price(preset)) { vm.buyPreset(preset) }
+                    else offer = SkinOffer("Монтик «${preset.title}»", Skins.price(preset), "fg_paint_av_${preset.id}") { vm.buyPreset(preset) }
                 }
             )
         }

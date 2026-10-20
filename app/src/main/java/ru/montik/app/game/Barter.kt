@@ -110,7 +110,6 @@ object Barter {
         )
         if (SERVICE_ID in clean) c.meters(energy = -10)
         c.mood(6, "Удачный обмен на рынке!")
-        c.xp(XP_PER_TRADE)
         c.say("🦝 Успешный бартер! Монтик отдал: $gave — и получил: ${want.emoji} ${want.name}. Уже в холодильнике.")
         c.log("бартер на рынке: $gave → ${want.name.lowercase()}")
         c.teach(Lesson.BARTER)

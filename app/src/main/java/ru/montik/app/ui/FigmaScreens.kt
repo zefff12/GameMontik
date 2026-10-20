@@ -1,5 +1,6 @@
 package ru.montik.app.ui
 
+import androidx.compose.animation.togetherWith
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
@@ -178,23 +179,22 @@ fun FigmaStory(onDone: () -> Unit) {
         }
         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { next() }
 
-    DesignCanvas(
-        modifier = swipe,
-        background = {
-            // Фон страницы плавно сменяется (перекрестным проявлением), а не мигает.
-            Crossfade(targetState = i, animationSpec = tween(MOTION_MS + 80), label = "storyBg") { idx ->
-                StoryBackground(storyFrames[idx.coerceIn(0, storyFrames.lastIndex)])
+    // Страница истории (фон вместе с текстом) выезжает целиком, как лист книги: старая уходит за край,
+    // новая встаёт на её место. Две картинки не накладываются друг на друга — без «сдвоения» экрана.
+    AnimatedContent(
+        targetState = i,
+        modifier = Modifier.fillMaxSize().then(swipe),
+        transitionSpec = {
+            val forward = targetState > initialState
+            (androidx.compose.animation.slideInHorizontally(tween(MOTION_MS + 60)) { if (forward) it else -it }) togetherWith
+                (androidx.compose.animation.slideOutHorizontally(tween(MOTION_MS + 60)) { if (forward) -it else it })
+        },
+        label = "storyPage"
+    ) { idx ->
+        Box(Modifier.fillMaxSize().clipToBounds()) {
+            DesignCanvas {
+                StoryLayer(idx, pages.size)
             }
-        }
-    ) {
-        // Сами страницы выезжают: вперёд — справа, назад — слева.
-        AnimatedContent(
-            targetState = i,
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = { stepTransform() },
-            label = "storyPage"
-        ) { idx ->
-            StoryLayer(idx, pages.size)
         }
     }
 }
@@ -213,9 +213,10 @@ private fun DesignScope.StoryLayer(idx: Int, pageCount: Int) {
         // Картинка истории — в координатах холста, как в макете: тогда Монтик стоит там же, где в Figma
         // (на набережной, а не в воде), даже если холст меньше экрана из-за панели навигации.
         if (frame.cropBg) {
-            Art(frame.bg, -0.2646f * DESIGN_W, -0.2631f * DESIGN_H, 1.2646f * DESIGN_W, 1.2633f * DESIGN_H, ContentScale.FillBounds)
+            FrameArt(frame.bg, -0.2646f * DESIGN_W, -0.2631f * DESIGN_H, 1.2646f * DESIGN_W, 1.2633f * DESIGN_H)
         } else {
-            Art(frame.bg, 0f, 0f, DESIGN_W, DESIGN_H, ContentScale.FillBounds)
+            // Поля экрана вокруг кадра — зеркальное продолжение той же картинки (без второго фона).
+            FrameArt(frame.bg)
         }
         // Холст уже стоит над системной панелью навигации (см. DesignCanvas), поэтому ничего не поднимаем.
         val lift = 0f
@@ -315,7 +316,7 @@ private fun DesignScope.StoryDots(x: Float, y: Float, active: Int) {
 fun FigmaReady(onGo: () -> Unit) {
     DesignCanvas(background = { Box(Modifier.fillMaxSize().background(MontikColors.Cream)) }) {
         // Кадр «история (начать игру)» нового макета: заголовок, текст и Монтик нарисованы на картинке.
-        Art("fg3_ready_bg", 0f, 35f, 412f, 787f, ContentScale.FillBounds)
+        FrameArt("fg3_ready_bg", 0f, 35f, 412f, 787f)
         // Кнопка «Вперёд!» (image 455, 313×104).
         Art("fg3_ready_btn", 49f, 735f, 313f, 104f, ContentScale.FillBounds)
         PressHit(60f, 745f, 291f, 84f, 42f, onClick = onGo)
@@ -340,7 +341,7 @@ fun FigmaHome(vm: GameViewModel) {
         // Вещи, купленные на накопленное (велосипед, приставка), стоят в комнате.
         RoomThings(vm, 10f, 548f)
         // Герой живёт в этой комнате, над нижней панелью. Нажми — ответит.
-        TalkingMontik(vm, 96f, 396f, 220f, 220f, heroSize = 205f, bubbleX = 30f, bubbleY = 318f)
+        TalkingMontik(vm, 96f, 396f, 220f, 220f, heroSize = 205f, bubbleX = 98f, bubbleY = 300f, bubbleW = 190f)
         HomeHud(vm, minutes)
     }
 }

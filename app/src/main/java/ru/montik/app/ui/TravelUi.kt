@@ -1,5 +1,6 @@
 package ru.montik.app.ui
 
+import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -316,7 +317,7 @@ private fun FlightScreen(vm: GameViewModel, dest: Destination, home: Boolean) {
         // Плашка «✈️ До Сочи: 2 ч 15 мин 🕐» — город и время меняются сами.
         Row(
             Modifier
-                .at(14f, 60f, 384f, 58f)
+                .at(14f, 58f, 384f, 70f)  // закрывает плашку, нарисованную на картинке салона
                 .clip(RoundedCornerShape(50))
                 .background(PlaqueCream)
                 .border(d(3f), PlaqueBorder, RoundedCornerShape(50))
@@ -338,13 +339,19 @@ private fun FlightScreen(vm: GameViewModel, dest: Destination, home: Boolean) {
             ArtImage("fg_trip_ic_clock", Modifier.size(d(26f)), ContentScale.Fit) { Text("🕐", fontSize = fs(18f, false)) }
         }
         // Полоска полёта.
-        Box(Modifier.at(40f, 128f, 332f, 10f).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.75f))) {
+        Box(Modifier.at(40f, 138f, 332f, 10f).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.85f))) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(progress.value).clip(RoundedCornerShape(50)).background(TravelGreen))
         }
-        DText(
-            if (home) "Монтик летит домой с новым опытом" else "Монтик летит: ${dest.name} уже близко!",
-            20f, 146f, 372f, 14f, bold = false, color = Color.White, mono = false, align = TextAlign.Center
-        )
+        // Подпись — на полупрозрачной плашке, чтобы читалась на фоне окна.
+        Box(
+            Modifier.at(46f, 156f, 320f, 28f).clip(RoundedCornerShape(50)).background(Color(0x99173A5E)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                if (home) "Монтик летит домой с новым опытом" else "Монтик летит: ${dest.name} уже близко!",
+                color = Color.White, fontSize = fs(13.5f, false), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false
+            )
+        }
     }
 }
 
@@ -366,7 +373,7 @@ private fun CityWalkScreen(vm: GameViewModel, dest: Destination) {
         return
     }
     val sochi = dest.id == "sochi"
-    val cardY = if (sochi) 196f else 74f
+    val cardY = if (sochi) 196f else 92f
     DesignCanvas(background = {
         ArtImage(cityWalkArt(dest.id), Modifier.fillMaxSize(), ContentScale.Crop) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF8CCBF0), Color(0xFFF6E7CF)))))
@@ -375,32 +382,30 @@ private fun CityWalkScreen(vm: GameViewModel, dest: Destination) {
         Art(cityWalkArt(dest.id), 0f, 0f, DESIGN_W, DESIGN_H, ContentScale.Crop)
         // Сочи: вывеска «Добро пожаловать в Сочи!» из макета (Android Compact 36).
         if (sochi) Art("fg_trip_sochi_logo", 6f, 62f, 400f, 133f, ContentScale.Fit)
-        Box(Modifier.at(16f, 14f)) { BackCircle({ vm.goTo(Screen.Home) }) }
-        Box(Modifier.at(230f, 14f, 170f, 50f), contentAlignment = Alignment.CenterEnd) { CoinPill(s.coins) }
+        TravelBack(12f, 22f) { vm.goTo(Screen.Home) }
+        CoinPill(rememberCountUp(s.coins), 282f, 27f)
 
-        // Карточка прогулки — как «Путешествие: Сочи / Остановка 1 из 3» в кадре Frame 36.
-        Row(
-            Modifier.at(16f, cardY, 380f, 104f).clip(RoundedCornerShape(d(24f))).background(Color(0xF2EBF5FD))
-                .border(d(1.5f), Color(0xFFD6E6F2), RoundedCornerShape(d(24f)))
-                .padding(horizontal = d(12f), vertical = d(10f)),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ArtImage("fg_trip_ic_jet", Modifier.size(d(46f)).clip(CircleShape), ContentScale.Fit) { Text("✈️", fontSize = fs(28f, false)) }
-            Spacer(Modifier.width(d(10f)))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(d(4f))) {
-                Text(
-                    "Путешествие: ${dest.name}",
-                    color = TravelInk, fontSize = fs(17f, false), fontWeight = FontWeight.Bold, fontFamily = MontikFont, maxLines = 1
-                )
-                Text(
-                    if (stop != null) "Остановка ${trip.stopsDone + 1} из ${dest.stops.size} — «${stop.title}»" else "Все остановки пройдены!",
-                    color = TravelBody, fontSize = fs(12.5f, false), fontFamily = MontikFont, maxLines = 1
-                )
-                StopDots(done = trip.stopsDone, total = dest.stops.size)
-            }
-            Spacer(Modifier.width(d(8f)))
-            ArtImage(cityThumbArt(dest.id), Modifier.size(d(62f)).clip(RoundedCornerShape(d(12f))), ContentScale.Crop) {
-                Text(dest.emoji, fontSize = fs(30f, false))
+        // Карточка прогулки — светлая плашка в стиле макета.
+        TravelPlate(16f, cardY, 380f, 100f) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ArtImage("fg_trip_ic_jet", Modifier.size(d(44f)).clip(CircleShape), ContentScale.Fit) { Text("✈️", fontSize = fs(26f, false)) }
+                Spacer(Modifier.width(d(10f)))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(d(3f))) {
+                    Text(
+                        "Путешествие: ${dest.name}",
+                        color = TravelPlateInk, fontSize = fs(16.5f, false), fontWeight = FontWeight.Black, maxLines = 1
+                    )
+                    Text(
+                        if (stop != null) "Остановка ${trip.stopsDone + 1} из ${dest.stops.size} — «${stop.title}»" else "Все остановки пройдены!",
+                        color = TravelPlateSub, fontSize = fs(12.5f, false), fontWeight = FontWeight.Bold, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    StopDots(done = trip.stopsDone, total = dest.stops.size)
+                }
+                Spacer(Modifier.width(d(8f)))
+                ArtImage(cityThumbArt(dest.id), Modifier.size(d(60f)).clip(RoundedCornerShape(d(14f))), ContentScale.Crop) {
+                    Text(dest.emoji, fontSize = fs(30f, false))
+                }
             }
         }
 
@@ -408,14 +413,13 @@ private fun CityWalkScreen(vm: GameViewModel, dest: Destination) {
         SoftGlow(cx = 110f, cy = 846f, w = 200f, h = 44f, color = Color.Black, peak = 0.25f)
         SceneMontik(vm, 0f, 610f, 230f)
 
-        // Кнопки прогулки.
+        // Кнопки прогулки: зелёная — главное действие, кремовая — кафе.
         if (stop != null) {
-            DPill("🗺 Остановка ${trip.stopsDone + 1} ›", 220f, 690f, 176f, 60f, fill = TravelDeepGreen, size = 17f) { stopOpen = stop.id }
+            TravelButton("Остановка ${trip.stopsDone + 1} ›", 214f, 700f, 182f, 58f, primary = true, size = 18f) { stopOpen = stop.id }
         }
-        DPill(
-            if (trip.cafe) "☕ Кафе (уже был)" else "☕ Кафе «Патрики»",
-            220f, 762f, 176f, 54f,
-            fill = Color(0xFFFFF4E4), textColor = Color(0xFF6B3A1E), size = 15f
+        TravelButton(
+            if (trip.cafe) "Кафе (уже был)" else "Кафе «Патрики»",
+            214f, 770f, 182f, 54f, primary = false, size = 15.5f
         ) { cafe = true }
     }
 }
@@ -673,8 +677,8 @@ private fun ConferenceScreen(vm: GameViewModel, dest: Destination) {
         ArtImage(cityConferenceArt(dest.id), Modifier.fillMaxSize(), ContentScale.Crop) { Box(Modifier.fillMaxSize().background(Color(0xFF2A2230))) }
     }) {
         Art(cityConferenceArt(dest.id), 0f, 0f, DESIGN_W, DESIGN_H, ContentScale.Crop)
-        Box(Modifier.at(16f, 14f)) { BackCircle({ vm.goTo(Screen.Home) }) }
-        Box(Modifier.at(230f, 14f, 170f, 50f), contentAlignment = Alignment.CenterEnd) { CoinPill(s.coins) }
+        TravelBack(12f, 22f) { vm.goTo(Screen.Home) }
+        CoinPill(rememberCountUp(s.coins), 282f, 27f)
         if (!attended) {
             Column(
                 Modifier.at(14f, 612f, 384f, 290f).clip(RoundedCornerShape(d(28f))).background(Color.White.copy(alpha = 0.96f))
@@ -746,61 +750,45 @@ private fun ConferenceResultOverlay(vm: GameViewModel, c: TripCelebration.Confer
     val after = Travel.shiftExample(base, c.conferencesAfter)
     val lvlBefore = Travel.careerLevel(c.conferencesBefore)
     val lvlAfter = Travel.careerLevel(c.conferencesAfter)
-    Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
-    ) {
-        DesignCanvas {
-            Box(Modifier.at(20f, 110f, 372f, 700f).clip(RoundedCornerShape(d(32f))).background(TipGreen).border(d(4f), TravelGreen, RoundedCornerShape(d(32f))))
-            DText("🏆 Получил новый опыт!", 30f, 134f, 352f, 24f, color = NameInk, mono = false, align = TextAlign.Center)
-            DText("Конференция «${dest.conference}»", 40f, 172f, 332f, 14f, bold = false, color = TravelBody, mono = false, align = TextAlign.Center)
-            // +100 опыта.
-            Box(
-                Modifier.at(116f, 214f, 180f, 50f).clip(RoundedCornerShape(50)).background(Color.White),
-                contentAlignment = Alignment.Center
-            ) { Text("📈 +${Travel.CONFERENCE_XP} опыта", color = TravelDeepGreen, fontSize = fs(19f, false), fontWeight = FontWeight.Bold, fontFamily = MontikFont) }
-            // Новый уровень.
-            Column(
-                Modifier.at(40f, 284f, 332f, 124f).clip(RoundedCornerShape(d(24f))).background(Color.White).padding(d(12f)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(d(4f))
-            ) {
-                Text(
-                    if (lvlAfter > lvlBefore) "⭐ НОВЫЙ УРОВЕНЬ!" else "⭐ Опыт пополнился",
-                    color = Color(0xFFE08A00), fontSize = fs(20f, false), fontWeight = FontWeight.Bold, fontFamily = MontikFont
-                )
-                Text(
-                    "Уровень профессионала: $lvlBefore → $lvlAfter",
-                    color = TravelInk, fontSize = fs(16f, false), fontWeight = FontWeight.Bold, fontFamily = MontikFont
-                )
-                if (c.xpLevelAfter > c.xpLevelBefore) {
-                    Text("Уровень Монтика: ${c.xpLevelBefore} → ${c.xpLevelAfter}", color = TravelBody, fontSize = fs(13f, false), fontFamily = MontikFont)
+    // Окно «Получил новый опыт!» из макета: числа с картинки стёрты, игра пишет свои.
+    Box {
+        DimPopup(
+            "fg4_conf_clean", 1024f / 1536f,
+            listOf(PopZone(0.12f, 0.77f, 0.78f, 0.10f) { vm.dismissTripCelebration() }),
+            onBack = { vm.dismissTripCelebration() }, maxWidth = 360.dp
+        ) { w, h ->
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            fun sp(v: Float) = with(density) { (h * v).toSp() }
+            @Composable
+            fun at(x0: Float, y0: Float, x1: Float, y1: Float, align: Alignment = Alignment.Center, content: @Composable () -> Unit) {
+                Box(Modifier.offset(w * x0, h * y0).size(w * (x1 - x0), h * (y1 - y0)), contentAlignment = align) { content() }
+            }
+            at(0.40f, 0.248f, 0.72f, 0.298f, Alignment.CenterStart) {
+                Text("+${Travel.CONFERENCE_XP} опыта", color = Color(0xFF1C6E22), fontSize = sp(0.032f), fontWeight = FontWeight.Black, maxLines = 1)
+            }
+            at(0.665f, 0.400f, 0.90f, 0.452f, Alignment.CenterStart) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("$lvlBefore", color = Color(0xFF1767F2), fontSize = sp(0.036f), fontWeight = FontWeight.Black)
+                    Text(" → ", color = Color(0xFF7A8AA3), fontSize = sp(0.026f), fontWeight = FontWeight.Bold)
+                    Text("$lvlAfter", color = Color(0xFF1C9A22), fontSize = sp(0.036f), fontWeight = FontWeight.Black)
                 }
             }
-            // Заработок до и после.
-            Column(
-                Modifier.at(40f, 424f, 332f, 186f).clip(RoundedCornerShape(d(24f))).background(Color.White).padding(d(12f)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(d(4f))
-            ) {
-                Text("💰 Заработок за смену в магазине", color = TravelInk, fontSize = fs(15f, false), fontWeight = FontWeight.Bold, fontFamily = MontikFont)
+            at(0.20f, 0.540f, 0.70f, 0.605f) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("$before", color = TravelBody, fontSize = fs(26f, false), fontWeight = FontWeight.Bold, fontFamily = MontikFont)
-                    Text("  →  ", color = TravelBody, fontSize = fs(22f, false), fontFamily = MontikFont)
-                    Text("$after", color = TravelDeepGreen, fontSize = fs(30f, false), fontWeight = FontWeight.Bold, fontFamily = MontikFont)
-                    Text(" 🪙", fontSize = fs(22f, false))
+                    Text("$before", color = Color(0xFF1767F2), fontSize = sp(0.050f), fontWeight = FontWeight.Black)
+                    Text("  →  ", color = Color(0xFF7A8AA3), fontSize = sp(0.032f), fontWeight = FontWeight.Bold)
+                    Text("$after", color = Color(0xFF1C9A22), fontSize = sp(0.050f), fontWeight = FontWeight.Black)
                 }
+            }
+            at(0.12f, 0.612f, 0.90f, 0.647f) {
                 Text(
                     "Прибавка за опыт: +${Travel.careerPercent(c.conferencesBefore)}% → +${Travel.careerPercent(c.conferencesAfter)}% — на любой работе.",
-                    color = TravelBody, fontSize = fs(12.5f, false), fontFamily = MontikFont, textAlign = TextAlign.Center
-                )
-                Text(
-                    "Путешествую → получаю опыт → повышаю уровень → зарабатываю больше!",
-                    color = TravelDeepGreen, fontSize = fs(13f, false), fontWeight = FontWeight.Bold, fontFamily = MontikFont, textAlign = TextAlign.Center
+                    color = Color(0xFF14246B), fontSize = sp(0.0175f), fontWeight = FontWeight.Bold, maxLines = 1
                 )
             }
-            DPill("✈️ Лететь домой", 76f, 636f, 260f, 62f, fill = TravelDeepGreen, size = 19f) { vm.dismissTripCelebration() }
-            DText("Перелёт: ${Travel.duration(dest.flightMinutes)}", 40f, 708f, 332f, 13f, bold = false, color = TravelBody, mono = false, align = TextAlign.Center)
+            at(0.33f, 0.895f, 0.70f, 0.932f) {
+                Text("Перелёт: ${Travel.duration(dest.flightMinutes)}", color = Color(0xFF14246B), fontSize = sp(0.019f), fontWeight = FontWeight.Bold, maxLines = 1)
+            }
         }
         Confetti(trigger = 2)
     }

@@ -1,5 +1,6 @@
 package ru.montik.app.ui
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.wrapContentSize
@@ -114,51 +115,82 @@ fun NewWorkList(vm: GameViewModel) {
     val bankOpen = BankWork.unlocked(s)
     val businessOpen = BusinessEngine.canStart(s)
     val coins = rememberCountUp(s.coins)
-    DesignCanvas(background = { ArtImage("fg2_work_bg", Modifier.fillMaxSize(), ContentScale.Crop) {} }) {
-        FrameArt("fg2_work_bg", -47f, -52f, 459f, 1022f)
-        Part("fg2_work_head", 24f, 23f, 363f, 121f)
-        LiveText("$coins", 330f, 74f, 72f, 34f, Color(0xFFEAF5FC), 22f)
-        PressHit(36f, 64f, 60f, 52f, 26f) { vm.back() }
-
+    DesignCanvas {
+        // «Работа» из нового макета: фон, заголовок, стрелка назад и монеты в синей пилюле.
+        FrameArt("fg4_work_bg", -47f, -52f, 459f, 1022f)
         val cards = listOf(
-            Triple("fg2_work_c1", -1f to 200f, 413f to 143f),
-            Triple("fg2_work_c2", -1f to 343f, 414f to 144f),
-            Triple("fg2_work_c3", -1f to 487f, 414f to 143f),
-            Triple("fg2_work_c4", -3f to 630f, 418f to 145f)
+            Triple("fg4_work_c1", -1f to 200f, 413f to 143f),
+            Triple("fg4_work_c2", -1f to 343f, 414f to 144f),
+            Triple("fg4_work_c3", -1f to 487f, 414f to 143f),
+            Triple(if (businessOpen) "fg3_work_biz_open" else "fg4_work_c4", -3f to 630f, 418f to 145f)
         )
         cards.forEachIndexed { i, (art, pos, size) ->
             val p = rememberSlide(i)
             Part(art, pos.first, pos.second, size.first, size.second, Modifier.slide(p))
         }
-        // Ставки за смену — из правил игры.
-        val cream = Color(0xFFF8F0E0)
-        LiveText("+${Job.HELPER.base}", 217f, 270f, 48f, 30f, cream, 18f, align = Alignment.CenterStart)
-        LiveText("+${ShopWork.rank(s).base}", 218f, 414f, 46f, 32f, cream, 18f, align = Alignment.CenterStart)
-        LiveText("+${BankWork.base(s)}", 212f, 560f, 58f, 30f, cream, 18f, align = Alignment.CenterStart)
+        Part("fg4_work_title", 70f, 25f, 225f, 75f)
+        Part("fg4_back", 15f, 31f, 70f, 69f)
+        PressHit(20f, 36f, 60f, 60f, 30f) { vm.back() }
+        CoinPill(coins, 282f, 41f)
 
-        // Открытый бизнес — второй вариант карточки из макета (image 571).
-        if (businessOpen) Part("fg3_work_biz_open", 8f, 634f, 396f, 137f)
-        // Нарисованные «>» и сами карточки. Пока работа закрыта, Монтик объясняет почему (без надписей поверх).
-        PressHit(14f, 224f, 384f, 98f, 24f, enabled = canWork) { vm.startShift(Job.HELPER) }
-        PressHit(14f, 366f, 384f, 94f, 24f, enabled = canWork) {
+        // Ставки за смену — из правил игры, на месте нарисованных.
+        val ink = Color(0xFF0F2A63)
+        WorkRate("+${Job.HELPER.base}", 224f, 288f, ink)
+        WorkRate("+${ShopWork.rank(s).base}", 220f, 434f, ink)
+        WorkRate("+${BankWork.base(s)}", 212f, 579f, ink)
+
+        // Карточки нажимаются целиком (и зелёная «>»). Пока работа закрыта, Монтик объясняет почему.
+        PressHit(8f, 214f, 396f, 116f, 24f, enabled = canWork) { vm.startShift(Job.HELPER) }
+        PressHit(8f, 357f, 396f, 116f, 24f, enabled = canWork) {
             if (storeOpen) vm.goTo(Screen.Store)
             else vm.say("Работа в магазине откроется через ${ShopWork.UNLOCK_SHIFTS - s.shifts} ${shiftsWordN(ShopWork.UNLOCK_SHIFTS - s.shifts)} у мастера.")
         }
-        PressHit(14f, 506f, 384f, 96f, 24f, enabled = canWork) {
+        PressHit(8f, 501f, 396f, 116f, 24f, enabled = canWork) {
             if (bankOpen) vm.goTo(Screen.BankJob)
             else vm.say("Работа в банке откроется через ${BankWork.UNLOCK_SHIFTS - s.shifts} ${shiftsWordN(BankWork.UNLOCK_SHIFTS - s.shifts)}.")
         }
-        PressHit(14f, 650f, 384f, 100f, 24f) {
+        PressHit(8f, 644f, 396f, 118f, 24f) {
             if (businessOpen) vm.goTo(Screen.Business) else vm.say("Бизнес можно открыть, когда накопишь 20 000 монет.")
         }
-        if (!canWork) {
-            val enter = rememberEnter()
-            Box(Modifier.at(10f, 330f, 392f, 221f).enterPop(enter)) {
-                ArtImage("fg_figma_nowork", Modifier.fillMaxSize(), ContentScale.FillBounds) {}
-            }
-            PressHit(10f + 392f * 0.043f, 330f + 221f * 0.727f, 392f * 0.466f, 221f * 0.177f, 16f) { vm.goTo(Screen.Grocery) }
-            PressHit(10f + 392f * 0.520f, 330f + 221f * 0.727f, 392f * 0.414f, 221f * 0.177f, 16f) { vm.goTo(Screen.Sleep) }
-        }
+    }
+    if (!canWork) NoWorkPopup(onShop = { vm.goTo(Screen.Grocery) }, onSleep = { vm.goTo(Screen.Sleep) }, onClose = { vm.back() })
+}
+
+/** Ставка на карточке работы: левый край [x], середина строки [cy]. */
+@Composable
+private fun DesignScope.WorkRate(text: String, x: Float, cy: Float, color: Color) {
+    Box(Modifier.at(x, cy - 14f, 70f, 28f), contentAlignment = Alignment.CenterStart) {
+        Text(text, color = color, fontSize = fs(20f, false), fontWeight = FontWeight.Black, maxLines = 1, softWrap = false)
+    }
+}
+
+/**
+ * Монеты в синей пилюле из макета (image 718 + монета 47×47): монета слева, число — ровно по центру
+ * оставшейся части пилюли. [x], [y] — левый верхний угол монеты.
+ */
+@Composable
+fun DesignScope.CoinPill(coins: Int, x: Float, y: Float) {
+    Box(
+        Modifier.absoluteOffset(d(x + 9f), d(y + 1f))
+            .wrapContentSize(Alignment.TopStart, unbounded = true)
+            .requiredSize(d(111f), d(46f))
+    ) { ArtImage("fg4_coinpill", Modifier.fillMaxSize(), ContentScale.FillBounds) {} }
+    Box(
+        Modifier.absoluteOffset(d(x), d(y))
+            .wrapContentSize(Alignment.TopStart, unbounded = true)
+            .requiredSize(d(47f), d(47f))
+    ) { ArtImage("fg4_coin", Modifier.fillMaxSize(), ContentScale.Fit) {} }
+    val text = spaced(coins)
+    Box(
+        Modifier.absoluteOffset(d(x + 47f), d(y + 1f))
+            .wrapContentSize(Alignment.TopStart, unbounded = true)
+            .requiredSize(d(70f), d(46f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text, color = Color(0xFF0F2A63), fontSize = fs(if (text.length > 5) 16f else 20f, false),
+            fontWeight = FontWeight.Black, maxLines = 1, softWrap = false
+        )
     }
 }
 
@@ -232,7 +264,7 @@ fun NewPiggyScreen(vm: GameViewModel, onWithdraw: () -> Unit) {
             if (tip?.first == g.id) {
                 val text = if (chosen) "${s.piggy} / ${g.cost}" else "${g.cost}"
                 Box(
-                    Modifier.at(250f, btnY - 30f, 110f, 28f).shadow(d(4f), RoundedCornerShape(d(14f)))
+                    Modifier.at(168f, btnY + 7f, 108f, 29f).shadow(d(4f), RoundedCornerShape(d(14f)))
                         .clip(RoundedCornerShape(d(14f))).background(Color.White)
                         .border(d(1.5f), Color(0xFFF2B21B), RoundedCornerShape(d(14f))),
                     contentAlignment = Alignment.Center
@@ -291,10 +323,15 @@ fun NewTasksList(vm: GameViewModel, onOpen: (FinTask) -> Unit) {
     val s = vm.state
     val coins = rememberCountUp(s.coins)
     val unlocked = Tasks.unlocked(s)
-    DesignCanvas(background = { ArtImage("fg2_tasks", Modifier.fillMaxSize(), ContentScale.Crop) {} }) {
-        FrameArt("fg2_tasks")
+    DesignCanvas {
+        FrameArt("fg4_tasks_bg")
         PressHit(22f, 100f, 46f, 40f, 20f) { vm.back() }
-        LiveText("$coins", 342f, 109f, 54f, 30f, Color(0xFFFCFCFC), 21f)
+        // Монеты: белая пилюля из макета (image 719), монета слева, число — по центру.
+        Part("fg4_tasks_coin", 273f, 85f, 139f, 69f)
+        Part("fg4_coin", 286f, 100f, 38f, 38f)
+        Box(Modifier.at(326f, 104f, 74f, 30f), contentAlignment = Alignment.Center) {
+            Text(spaced(coins), color = Color(0xFF14246B), fontSize = fs(if (coins >= 10000) 15f else 19f, false), fontWeight = FontWeight.Black, maxLines = 1, softWrap = false)
+        }
         TASK_CARDS.forEachIndexed { i, (id, r) ->
             val t = Tasks.byId(id) ?: return@forEachIndexed
             val open = t in unlocked
@@ -340,29 +377,38 @@ fun NewHousingScreen(vm: GameViewModel) {
 @Composable
 private fun NewHousingList(vm: GameViewModel, onDetail: () -> Unit) {
     val s = vm.state
-    var starsInfo by rememberSaveable { mutableStateOf(false) }
     DesignCanvas {
-        // «Варианты жилья» из нового макета: цены аренды и переезда нарисованы на карточках
-        // (150 · 0, 400 · 300, 800 · 700 — те же, что в игре), поверх ничего не пишем.
+        // «Варианты жилья» из нового макета: аренда нарисована на карточке, звёзды с картинки стёрты —
+        // вместо них уровень, с которого квартира открывается (замок, пока уровень не дорос).
         FrameArt("fg3_house_bg", 0f, 0f, 412f, 922f)
         Part("fg3_house_head_clean", 35f, 40f, 342f, 117f)
         LiveText("${rememberCountUp(s.coins)}", 331f, 89f, 34f, 24f, Color(0x00000000), 17f, Color(0xFF14246B))
         PressHit(43f, 76f, 46f, 44f, 22f) { onDetail() }
         val cards = listOf(
-            Triple(Housing.MODEST, "fg3_house_l1", floatArrayOf(13f, 146f, 383f, 216f)),
-            Triple(Housing.COZY, "fg3_house_l2", floatArrayOf(12f, 339f, 384f, 216f)),
-            Triple(Housing.PENTHOUSE, "fg3_house_l3", floatArrayOf(15f, 539f, 381f, 218f))
+            Triple(Housing.MODEST, "fg3_house_l1_nostar", floatArrayOf(13f, 146f, 383f, 216f)),
+            Triple(Housing.COZY, "fg3_house_l2_nostar", floatArrayOf(12f, 339f, 384f, 216f)),
+            Triple(Housing.PENTHOUSE, "fg3_house_l3_nostar", floatArrayOf(15f, 539f, 381f, 218f))
         )
         cards.forEachIndexed { i, (h, art, r) ->
             val p = rememberSlide(i)
             Part(art, r[0], r[1], r[2], r[3], Modifier.slide(p))
+            // На месте звезды — уровень, с которого открывается квартира.
+            val myLevel = ru.montik.app.game.Progress.levelOf(s.xp)
+            val open = myLevel >= h.levelNeeded
+            val sx = r[0] + (if (h == Housing.MODEST) 118f else 116f) * r[2] / 384f
+            Row(
+                Modifier.at(sx, r[1] + 143f * r[3] / 216f, 80f, 36f).slide(p),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(if (open) "✓" else "🔒", color = if (open) Color(0xFF2E9B2E) else Color(0xFF14246B), fontSize = fs(15f, false), fontWeight = FontWeight.Black)
+                Box(Modifier.size(d(3f)))
+                Text("${h.levelNeeded} ур.", color = Color(0xFF14246B), fontSize = fs(18f, false), fontWeight = FontWeight.Black, maxLines = 1, softWrap = false)
+            }
             val blocker = Life.moveBlocker(s, h)
             val tap = {
                 when {
                     h.level == s.housing -> onDetail()
                     blocker == null -> vm.moveTo(h.level)
-                    // Не хватает звёзд — плашка «Звёзды нужны для улучшения твоего уровня».
-                    s.stars < h.starsNeeded && h.level == s.housing + 1 -> starsInfo = true
                     else -> vm.say(blocker)
                 }
             }
@@ -371,7 +417,6 @@ private fun NewHousingList(vm: GameViewModel, onDetail: () -> Unit) {
             Hit(r[0], r[1], r[2] * 0.78f, r[3], tap)
         }
     }
-    if (starsInfo) StarsPopup { starsInfo = false }
 }
 
 @Composable
@@ -380,8 +425,8 @@ private fun NewHousingDetail(vm: GameViewModel, onList: () -> Unit) {
     val home = s.home
     val coins = rememberCountUp(s.coins)
     DesignCanvas {
-        // «Жильё и уровень» (новый макет): текущее жильё, аренда, следующий платёж, звёзды привычек.
-        FrameArt("fg3_house2_bg")
+        // «Жильё и уровень» (новый макет): текущее жильё, аренда, следующий платёж, уровень Монтика.
+        FrameArt("fg3_house2_bg_nostar")
         PressHit(20f, 52f, 48f, 46f, 23f) { vm.back() }
         LiveText("$coins", 350f, 62f, 46f, 26f, Color(0xFFFDFCF8), 18f)
         if (home.level != 1) {
@@ -398,7 +443,26 @@ private fun NewHousingDetail(vm: GameViewModel, onList: () -> Unit) {
             103f, 339f, 120f, 22f, Color(0xFFE8F4FB), 12.5f,
             if (s.rentDebt > 0) Color(0xFFD84A3C) else Color(0xFF7A8AA3), align = Alignment.CenterStart
         )
-        LiveText("${s.stars}", 346f, 383f, 30f, 24f, Color(0xFFFDF8EA), 17f)
+        // Строка уровня: значок с номером уровня, подпись и до какой квартиры осталось.
+        val level = ru.montik.app.game.Progress.levelOf(s.xp)
+        Box(
+            Modifier.at(40f, 368f, 42f, 42f).clip(RoundedCornerShape(d(12f)))
+                .background(Brush.verticalGradient(listOf(Color(0xFF7ED957), Color(0xFF2E9B2E)))),
+            contentAlignment = Alignment.Center
+        ) { Text("$level", color = Color.White, fontSize = fs(20f, false), fontWeight = FontWeight.Black) }
+        Box(Modifier.at(98f, 380f, 196f, 30f), contentAlignment = Alignment.CenterStart) {
+            Text("Уровень Монтика", color = Color(0xFF14246B), fontSize = fs(15f, false), fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+        val next = Life.nextHousing(s)
+        Box(
+            Modifier.at(298f, 375f, 68f, 36f).clip(RoundedCornerShape(d(18f))).background(Color(0xFFFFF4D9)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                when { next == null -> "макс."; level >= next.levelNeeded -> "переезд!"; else -> "до ${next.levelNeeded}" }, color = Color(0xFF14246B),
+                fontSize = fs(14f, false), fontWeight = FontWeight.Black, maxLines = 1
+            )
+        }
         // Платёж: если есть долг — нажать на строку «Следующий платёж», чтобы погасить.
         Hit(36f, 315f, 350f, 56f) {
             when {
@@ -429,7 +493,7 @@ fun NewBankScreen(vm: GameViewModel, onCredits: () -> Unit) {
         LiveText("$coins", 344f, 79f, 50f, 28f, Color(0xFFFDF5E4), 19f)
         DText(
             "Каждую неделю банк добавляет 5% к твоему вкладу.",
-            40f, 282f, 190f, 14.5f, bold = false, color = Color(0xFF253A63), mono = false, lineHeight = 1.25f
+            40f, 280f, 132f, 14f, bold = false, color = Color(0xFF253A63), mono = false, lineHeight = 1.2f
         )
         LiveText("$deposit", 80f, 459f, 90f, 28f, Color(0xFFFDFBF1), 21f, align = Alignment.CenterStart)
         if (s.deposit <= 0) {
@@ -441,7 +505,7 @@ fun NewBankScreen(vm: GameViewModel, onCredits: () -> Unit) {
         } else {
             val days = ru.montik.app.game.GameEngine.daysToInterest(s)
             LiveText(
-                "Через $days ${daysWordN(days)} банк добавит ${ru.montik.app.game.GameEngine.weeklyInterest(s)} ${coinWord(ru.montik.app.game.GameEngine.weeklyInterest(s))}",
+                "Через $days ${daysWordN(days)} банк добавит ${ru.montik.app.game.GameEngine.weeklyInterest(s)} ${coinWord(ru.montik.app.game.GameEngine.weeklyInterest(s)).replace("монета", "монету")}",
                 40f, 502f, 226f, 44f, Color(0xFFEEF6E3), 13.5f, Color(0xFF253A63), align = Alignment.CenterStart, maxLines = 2,
                 weight = FontWeight.Normal
             )

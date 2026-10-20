@@ -144,6 +144,8 @@ fun ScreenScaffold(
     /** Картинка у заголовка (fg_ui_h_*) и рисованный низ страницы (fg_ui_foot_*) из макета. */
     icon: String? = null,
     footer: String? = null,
+    /** Что делает стрелка «назад» (по умолчанию — как системная кнопка). */
+    onBack: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Box(Modifier.fillMaxSize().background(Page.Bg), contentAlignment = Alignment.TopCenter) {
@@ -168,7 +170,7 @@ fun ScreenScaffold(
                 Modifier.fillMaxWidth().padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BackCircle({ vm.back() })
+                BackCircle({ if (onBack != null) onBack() else vm.back() })
                 Spacer(Modifier.width(10.dp))
                 if (icon != null) {
                     FigIcon(icon, "", 54.dp)

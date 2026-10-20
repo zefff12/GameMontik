@@ -98,9 +98,19 @@ object Goals {
         val c = GameEngine.Ctx(state)
         c.s = c.s.copy(goalId = goal.id)
         c.say("${goal.emoji} Новая цель: «${goal.title}» — ${goal.cost} монет. В копилке уже ${state.piggy}.")
+        c.xpOnce("goal_set_${goal.id}", Progress.XP_GOAL_SET)
+        halfXp(c)
         c.log("выбрал цель: ${goal.title}")
         c.teach(Lesson.GOAL)
         return c.done()
+    }
+
+    /** Опыт за половину пути к цели — один раз на цель. */
+    private fun halfXp(c: GameEngine.Ctx) {
+        val goal = current(c.s) ?: return
+        if (c.s.piggy * 2 >= goal.cost) {
+            c.xpOnce("goal_half_${goal.id}", Progress.XP_GOAL_HALF, "🐷 Половина пути к «${goal.title}» пройдена! +${Progress.XP_GOAL_HALF} опыта.")
+        }
     }
 
     /** Положить в копилку. */
@@ -128,6 +138,7 @@ object Goals {
         }
         c.log("в копилку +$amount")
         c.xpForSaving()
+        halfXp(c)
         c.teach(Lesson.GOAL)
         if (Medals.PIGGY_STARTED !in c.s.milestones) {
             c.s = c.s.copy(milestones = c.s.milestones + Medals.PIGGY_STARTED)

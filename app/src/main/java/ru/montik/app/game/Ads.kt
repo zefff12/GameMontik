@@ -54,12 +54,12 @@ object Ads {
         val c = GameEngine.Ctx(state)
         c.s = c.s.copy(pendingAd = null, adsDeclined = c.s.adsDeclined + 1)
         c.say(
-            "✋ Монтик закрыл рекламу — $price монет остались в кошельке. " +
+            (if (price <= state.coins) "✋ Монтик закрыл рекламу — $price ${coinWordRu(price)} остались в кошельке. "
+            else "✋ Монтик закрыл рекламу и не стал тратить деньги. ") +
                 "Реклама кричит «выгода», но выгодно это продавцу. Хорошая покупка — та, что в плане."
         )
         c.log("закрыл рекламу: ${ad.item.lowercase()} (сберёг $price)")
         c.teach(Lesson.ADS)
-        c.xp(Progress.XP_AD_DECLINED)
         if (c.s.adsDeclined == 3) {
             c.skill(Skill.PLANNER, 2)
             c.say("🛡 Три раза подряд ты не поддался рекламе. Навык «Планировщик» растёт!")

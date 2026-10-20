@@ -404,7 +404,7 @@ fun DesignScope.TalkingMontik(
         MontikView(vm.sprite, s, d(heroSize), heroPalette(s))
     }
     phrase?.let {
-        SpeechBubble(it, bubbleX, bubbleY, bubbleW, 66f, tailX = (x + w / 2f - 20f).coerceIn(bubbleX + 24f, bubbleX + bubbleW - 30f))
+        SpeechBubble(it, bubbleX, bubbleY, bubbleW, 74f, tailX = (x + w / 2f - 20f).coerceIn(bubbleX + 24f, bubbleX + bubbleW - 30f))
     }
 }
 

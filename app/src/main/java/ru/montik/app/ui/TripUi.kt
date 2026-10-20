@@ -49,6 +49,12 @@ fun TripHomeScreen(vm: GameViewModel) {
     val trip = s.trip ?: return
     val dest = Destinations.byId(trip.destinationId) ?: return
     val stop = GameEngine.currentStop(s)
+    // Монтик в городе, а задание города (где открыть кофейню и т. п.) ещё не решено — сначала задание.
+    val cityTask = ru.montik.app.game.CityTasks.due(s)
+    if (cityTask != null && hasCityTask(cityTask.city)) {
+        CityTaskScreen(vm, cityTask)
+        return
+    }
 
     // В Сочи Монтик живёт у моря (кадры Frame 26 / Android Compact 31), в остальных городах — небо и холм (Frame 37).
     val beach = dest.id == "sochi" && rememberHasArt("fg_trip_beach")
@@ -66,32 +72,30 @@ fun TripHomeScreen(vm: GameViewModel) {
             Box(Modifier.at(-80f, 600f, 572f, 380f).clip(RoundedCornerShape(topStart = d(290f), topEnd = d(290f))).background(Color(0xFF9CD67C)))
         }
 
-        Box(Modifier.at(250f, 18f, 150f, 44f), contentAlignment = Alignment.CenterEnd) { CoinPill(s.coins) }
+        CoinPill(rememberCountUp(s.coins), 282f, 22f)
 
-        // Карточка поездки.
-        Column(
-            Modifier.at(16f, 78f, 380f, 124f).clip(RoundedCornerShape(d(26f))).background(Color.White.copy(alpha = 0.96f))
-                .padding(horizontal = d(16f), vertical = d(12f)),
-            verticalArrangement = Arrangement.spacedBy(d(5f))
-        ) {
-            Text(
-                "✈️ Монтик в путешествии! ${dest.emoji} ${dest.name}",
-                color = MontikColors.Ink, fontSize = fs(16.5f, false), fontWeight = FontWeight.Bold, maxLines = 1
-            )
-            Text(
-                "📍 " + when (trip.phase) {
-                    TripPhase.FLY_OUT -> "Самолёт летит: ${Travel.flightTitle(dest, false)} — ${Travel.duration(dest.flightMinutes)}"
-                    TripPhase.CITY -> "Остановка ${trip.stopsDone + 1} из ${dest.stops.size}" + (stop?.let { " — «${it.title}»" } ?: "")
-                    TripPhase.CONFERENCE -> "Бизнес-конференция «${dest.conference}»"
-                    TripPhase.FLY_HOME -> "Пора домой: ${Travel.duration(dest.flightMinutes)} в самолёте"
-                },
-                color = Color(0xFF2B4A7A), fontSize = fs(13.5f, false), maxLines = 2
-            )
-            Box(Modifier.fillMaxWidth().height(d(1f)).background(Color(0xFFE3ECE0)))
-            Text(
-                "Квартира ждёт его дома. Еда ${s.food} · Вода ${s.water} · Силы ${s.energy}",
-                color = Color(0xFF2B4A7A), fontSize = fs(12.5f, false), maxLines = 1
-            )
+        // Карточка поездки — светлая плашка в стиле макета.
+        TravelPlate(16f, 80f, 380f, 122f) {
+            Column(verticalArrangement = Arrangement.spacedBy(d(4f))) {
+                Text(
+                    "Монтик в путешествии: ${dest.name}",
+                    color = TravelPlateInk, fontSize = fs(16.5f, false), fontWeight = FontWeight.Black, maxLines = 1
+                )
+                Text(
+                    when (trip.phase) {
+                        TripPhase.FLY_OUT -> "Самолёт летит: ${Travel.flightTitle(dest, false)} — ${Travel.duration(dest.flightMinutes)}"
+                        TripPhase.CITY -> "Остановка ${trip.stopsDone + 1} из ${dest.stops.size}" + (stop?.let { " — «${it.title}»" } ?: "")
+                        TripPhase.CONFERENCE -> "Бизнес-конференция «${dest.conference}»"
+                        TripPhase.FLY_HOME -> "Пора домой: ${Travel.duration(dest.flightMinutes)} в самолёте"
+                    },
+                    color = TravelPlateSub, fontSize = fs(13f, false), fontWeight = FontWeight.Bold, maxLines = 2
+                )
+                Box(Modifier.fillMaxWidth().height(d(1.5f)).background(Color(0xFFD9ECF8)))
+                Text(
+                    "Еда ${s.food} · Вода ${s.water} · Силы ${s.energy}",
+                    color = TravelPlateSub, fontSize = fs(12.5f, false), fontWeight = FontWeight.Bold, maxLines = 1
+                )
+            }
         }
 
         // Наклейка города: волна для Сочи, магнит — для остальных.
@@ -107,10 +111,10 @@ fun TripHomeScreen(vm: GameViewModel) {
         Text("🧳", fontSize = fs(58f, false), modifier = Modifier.at(290f, 548f))
 
         // Кнопки.
-        DPill("🧳 Продолжить путешествие →", 30f, 666f, 352f, 64f, fill = Color(0xFF2E7D4F), size = 18f) { vm.goTo(Screen.Travel) }
-        TripButton("📱", "Телефон", 30f, 752f) { vm.goTo(Screen.Phone) }
-        TripButton("💤", "Сон", 160f, 752f) { vm.goTo(Screen.Sleep) }
-        TripButton("🍽", "Кухня", 290f, 752f) { vm.goTo(Screen.Kitchen) }
+        TravelButton("Продолжить путешествие  ›", 30f, 664f, 352f, 64f, primary = true, size = 19f) { vm.goTo(Screen.Travel) }
+        TravelTile("fg4_ic_phone", "📱", "Телефон", 34f, 748f) { vm.goTo(Screen.Phone) }
+        TravelTile("fg4_ic_bed", "💤", "Сон", 158f, 748f) { vm.goTo(Screen.Sleep) }
+        TravelTile("fg4_ic_food", "🍽", "Кухня", 282f, 748f) { vm.goTo(Screen.Kitchen) }
     }
 }
 
